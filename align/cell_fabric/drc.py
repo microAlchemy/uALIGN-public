@@ -1,3 +1,4 @@
+import os
 import pprint
 import logging
 from collections import defaultdict
@@ -43,6 +44,7 @@ class DesignRuleCheck():
         Note: self.canvas must already contain 'rd'
               (aka removeDuplicates has been run)
         '''
+        self._check_capmim_rules()
 
         for (layer, vv) in self.canvas.rd.store_scan_lines.items():
             if not (layer.startswith('V') or layer.startswith('M')) or layer not in self.canvas.pdk:
@@ -63,6 +65,41 @@ class DesignRuleCheck():
                 logger.warning(pprint.pformat(error))
 
         return self.num_errors
+
+    def _check_capmim_rules(self):
+        pdk = getattr(self.canvas, "pdk", None)
+        if pdk is None:
+            return
+        if "CapMIMLayer" not in pdk or "CapMIMContact" not in pdk:
+            return
+
+        def layer_rects(layer):
+            return [t["rect"] for t in self.canvas.terminals if t["layer"] == layer]
+
+        def encloses(outer, inner, enclosure):
+            return (outer[0] <= inner[0] - enclosure and outer[1] <= inner[1] - enclosure and
+                    outer[2] >= inner[2] + enclosure and outer[3] >= inner[3] + enclosure)
+
+        cap_layers = layer_rects("CapMIMLayer")
+        cap_contacts = layer_rects("CapMIMContact")
+        m4_rects = layer_rects("M4")
+
+        contact_encl = pdk["CapMIMContact"].get("Enclosure")
+        if contact_encl is not None and cap_layers and cap_contacts:
+            for rect in cap_contacts:
+                if not any(encloses(layer_rect, rect, contact_encl) for layer_rect in cap_layers):
+                    self.errors.append(
+                        f"CapMIMContact enclosure violation: {rect} not enclosed by CapMIMLayer {contact_encl}"
+                    )
+
+        layer_encl = pdk["CapMIMLayer"].get("Enclosure")
+        strict_m4_encl = os.getenv("ALIGN_SKY130_STRICT_CAPMIM_M4_ENC", "").lower() in {"1", "true", "yes", "on"}
+        if strict_m4_encl and layer_encl is not None and cap_layers and m4_rects:
+            for rect in cap_layers:
+                if not any(encloses(m4_rect, rect, layer_encl) for m4_rect in m4_rects):
+                    self.errors.append(
+                        f"CapMIMLayer enclosure violation: {rect} not enclosed by M4 {layer_encl}"
+                    )
 
     def _check_via_rules(self, layer, vv):
         '''Simple rules related to vertical and horizontal spacing; need more work for diagonals'''

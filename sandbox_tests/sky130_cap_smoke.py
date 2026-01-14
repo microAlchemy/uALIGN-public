@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import os
 import pathlib
 import sys
 
@@ -15,10 +16,14 @@ def main():
 
     pdk = Pdk().load(pdk_dir / "layers.json")
     cap = CapGenerator(pdk)
+    os.environ["ALIGN_SKY130_STRICT"] = "1"
+    os.environ["ALIGN_SKY130_STRICT_CAPMIM_M4_ENC"] = "1"
     cap.addCap(1600, 1600)
     cap.computeBbox()
     cap.gen_data(run_drc=True, run_pex=False)
 
+    assert cap.drc is not None, "Cap generator missing DRC output"
+    assert len(cap.drc.errors) == 0, f"Cap generator DRC errors: {cap.drc.errors}"
     assert len(cap.rd.opens) == 0, f"Cap generator OPENs: {cap.rd.opens}"
     assert len(cap.rd.different_widths) == 0, f"Cap generator width mismatches: {cap.rd.different_widths}"
 

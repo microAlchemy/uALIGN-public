@@ -28,6 +28,7 @@ def main():
     env["ALIGN_SKY130_STRICT"] = "1"
     env["ALIGN_SKY130_STRICT_RELAX_M4_PATHS"] = "0"
     env["ALIGN_SKY130_STRICT_M4_BLOCK_GRID"] = "1"
+    env["ALIGN_SKY130_STRICT_CAPMIM_M4_ENC"] = "1"
     env["ALIGN_PLACER_SKIP_SA"] = "0"
     env["ALIGN_PLACER_SKIP_ENUM"] = "0"
 
