@@ -188,6 +188,8 @@
   - Runs UMICH with strict + no-relax + M4 block grid flags, forces SA/enum placement, asserts empty `.errors`, and checks top-level block placements align to the M4 grid.
 - `sandbox_tests/sky130_strict_examples.py`
   - Runs `buffer`, `inverter`, `five_transistor_ota`, `current_mirror_ota`, and `telescopic_ota` with strict no-relax flags; asserts empty `.errors` files.
+- `sandbox_tests/sky130_unsupported_inductor.py`
+  - Verifies unsupported inductors fail early with a clear error message.
 
 ## Integration Attempts
 - `five_transistor_ota` run attempted via:
