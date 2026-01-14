@@ -5,7 +5,7 @@ import math
 import pathlib
 
 from align.compiler.read_library import read_models
-from align.schema import Instance, Model, SubCircuit
+from align.schema import Instance, SubCircuit
 from align.schema.types import set_context
 
 
@@ -26,11 +26,6 @@ def main():
     expected_height = math.ceil(math.sqrt(expected_size / unit_height_res))
 
     with set_context(lib):
-        lib.append(Model(
-            name="SKY130_FD_PR__RES_GENERIC_ND",
-            base="RES",
-            parameters={"L": "1", "W": "1"}
-        ))
         subckt = SubCircuit(name="SMOKE_RES_LW", pins=["PLUS", "MINUS"], generator={"name": "RES"})
     with set_context(subckt.elements):
         subckt.elements.append(

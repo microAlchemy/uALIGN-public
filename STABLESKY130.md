@@ -85,6 +85,10 @@
 - Bulk MOS uses exact `W/L`, but cell height/grid assumptions remain fin-based.
 - Lack of full SKY130 DRC/LVS completeness.
 - Limited device coverage beyond MOS/CAP/RES; diodes remain unsupported (explicit error), and specialty cap/res variants are only partially covered.
+- SKY130 SPICE models generally expect `W/L` in microns; ALIGN assumes SI units in netlists (meters). `AREA` inputs are interpreted as m^2 (consistent with SI netlists). Micron-based netlists must use unit suffixes (e.g., `7u`) to avoid 1e6x scaling errors.
+- Resistor variants with body pins (3‑terminal `res_generic_*`) are not supported; only 2‑terminal usage is accepted today.
+- CAP/RES multiplicity parameters (`M`, `MF`, `MULT`) are parsed but not used to scale geometry yet.
+- SKY130 `generator_class()` matches any subckt name containing `cap`/`res`; top-level circuits with those substrings are misclassified as primitives. Avoid those names (or tighten matching).
 - Inductors are unsupported (no generator); netlists using `.model inductor` will error out.
 - Unsupported inductors now fail early with a clear error during primitive generation.
 - SA/enum placement is heuristic; symmetry and constraint enforcement are not guaranteed for complex designs.
@@ -114,6 +118,8 @@
   - Inject NMOS/PMOS model hint for SKY130 devices.
   - Use exact schematic `W/L` to size bulk MOS active/poly geometry.
   - Allow SKY130 CAP/RES variants to size from `L/W` or `AREA` parameters (fallback to `VALUE`/`R`).
+  - Expanded SKY130 `models.sp` entries to accept `L/W/AREA` and multiplicity params for cap/res variants.
+  - Set default CAP/RES L/W/R/AREA params to `0` so explicit L/W/AREA inputs are not masked by defaults.
 - [x] Phase 3: Validation & checkpoints
   - Added sandbox smoke test script; executed successfully in `.venv_sky130`.
   - `five_transistor_ota` completes end-to-end (placement + routing + GDS).
@@ -212,3 +218,4 @@
 - `inverter` and `buffer` complete end-to-end with PnR and GDS output.
 - `current_mirror_ota` and `telescopic_ota` complete end-to-end with SKY130 workarounds enabled.
 - `umich_test_case` completes end-to-end with SKY130 workarounds enabled; `.errors` files are empty.
+- `lw_cell` (L/W cap) completes end-to-end using `sky130_fd_pr__cap_mim_m3_1 W=7u L=19u MF=1`; outputs in `work_sky130_cap_lw`.

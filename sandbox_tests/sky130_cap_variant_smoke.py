@@ -4,7 +4,7 @@ import math
 import pathlib
 
 from align.compiler.read_library import read_models
-from align.schema import Instance, Model, SubCircuit
+from align.schema import Instance, SubCircuit
 from align.schema.types import set_context
 
 
@@ -37,13 +37,10 @@ def main():
         "SMOKE_CAP_LW",
         {"L": "1.9e-6", "W": "70e-9"},
     )
-    with set_context(lib):
-        lib.append(Model(name="CAP_AREA", base="CAP", parameters={"AREA": "1"}))
     subckt_area = _build_cap_subckt(
         lib,
         "SMOKE_CAP_AREA",
-        {"AREA": "4e-12"},
-        model="CAP_AREA",
+        {"AREA": "4e-12", "MF": "2"},
     )
 
     spec = importlib.util.spec_from_file_location("sky130_gen_param", pdk_dir / "gen_param.py")
