@@ -58,7 +58,7 @@ def gen_viewer_json(hN, *, pdkdir, draw_grid=False, global_route_json=None, json
         if strict_sky130:
             env_relax_paths = os.getenv("ALIGN_SKY130_STRICT_RELAX_M4_PATHS")
             if env_relax_paths is None or env_relax_paths == "":
-                relax_m4_paths = True
+                relax_m4_paths = False
             else:
                 relax_m4_paths = env_relax_paths.lower() in {"1", "true", "yes", "on"}
         else:

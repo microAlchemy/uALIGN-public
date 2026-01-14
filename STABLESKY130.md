@@ -10,7 +10,7 @@
 - SA/enum placement is enabled by default for SKY130. Set `ALIGN_PLACER_SKIP_SA=1` and/or `ALIGN_PLACER_SKIP_ENUM=1` only if you need to bypass the SA/enum placer.
 - Set `ALIGN_SKIP_PLACEMENT_CHECK=1` to bypass placement constraint checks if needed.
 - Strict SKY130 mode: set `ALIGN_SKY130_STRICT=1` to enforce strict grid checks and cap snapping. Default strict M4 grid uses `M4.Pitch`/`M4.Offset`; override with `ALIGN_SKY130_STRICT_M4_PITCH` and `ALIGN_SKY130_STRICT_M4_OFFSET`.
-- Strict SKY130 path relax: `ALIGN_SKY130_STRICT_RELAX_M4_PATHS` (default enabled for SKY130) allows M4 path_metal/path_via checks to accept the M2 grid (router via enclosures are aligned to M2 for some SKY130 blocks). Set to `0` to enforce M4-only path grid checks.
+- Strict SKY130 path relax: `ALIGN_SKY130_STRICT_RELAX_M4_PATHS` allows M4 path_metal/path_via checks to accept the M2 grid (router via enclosures are aligned to M2 for some SKY130 blocks). Default is disabled in strict mode; set to `1` to relax.
 - Strict SKY130 block grid: set `ALIGN_SKY130_STRICT_M4_BLOCK_GRID=1` to align sub-block placements to the M4 pitch/offset so strict M4 checks can be enforced hierarchically.
 - Strict SKY130 M4 checks are enforced at top-level only by default; enable `ALIGN_SKY130_STRICT_M4_BLOCK_GRID=1` to avoid non-top-level relaxations.
 - Strict CapMIM M4 enclosure: set `ALIGN_SKY130_STRICT_CAPMIM_M4_ENC=1` to enforce CapMIMLayer enclosure inside M4 plates in strict mode.
@@ -23,7 +23,7 @@
 - `umich_test_case` completes end-to-end with SKY130 workarounds enabled; `.errors` files are empty and CapMIM warnings are suppressed in PnR checks.
 - Placement constraint checks pass for `five_transistor_ota`, `current_mirror_ota`, `telescopic_ota`, and `umich_test_case` with `ALIGN_SKIP_PLACEMENT_CHECK=0`.
 - All examples complete with SA/enum placement enabled (`ALIGN_PLACER_SKIP_SA=0`, `ALIGN_PLACER_SKIP_ENUM=0`).
-- `current_mirror_ota`, `five_transistor_ota`, and `umich_test_case` complete with empty `.errors` files when `ALIGN_SKY130_STRICT=1` is set (strict uses M4 pitch/offset defaults and relaxes M4 path_metal/path_via to M2 grid by default).
+- `current_mirror_ota`, `five_transistor_ota`, and `umich_test_case` complete with empty `.errors` files when `ALIGN_SKY130_STRICT=1` is set (strict uses M4 pitch/offset defaults; relax M4 path checks only if `ALIGN_SKY130_STRICT_RELAX_M4_PATHS=1`).
 - `umich_test_case` completes with `ALIGN_SKY130_STRICT=1`, `ALIGN_SKY130_STRICT_RELAX_M4_PATHS=0`, and `ALIGN_SKY130_STRICT_M4_BLOCK_GRID=1`; `.errors` files are empty and top-level block placements align to the M4 grid.
 - `umich_test_case` completes with `ALIGN_SKY130_STRICT_CAPMIM_M4_ENC=1`; CapMIMLayer is enclosed by M4 in strict mode.
 - `buffer`, `inverter`, `five_transistor_ota`, `current_mirror_ota`, and `telescopic_ota` complete with strict no-relax flags and `ALIGN_SKY130_STRICT_CAPMIM_M4_ENC=1`.
@@ -90,7 +90,7 @@
 - Strict SKY130 M4 grid checks are top-level only by default; use `ALIGN_SKY130_STRICT_M4_BLOCK_GRID=1` to enforce hierarchical M4 alignment.
 - CapMIMContact/CapMIMLayer connectivity is not validated; enclosure checks are enforced in DRC.
 - Strict mode defaults to the PDK `M4.Pitch`/`M4.Offset`.
-- Strict SKY130 relaxes M4 path_metal/path_via to the M2 grid by default; disable with `ALIGN_SKY130_STRICT_RELAX_M4_PATHS=0` for full M4 enforcement.
+- Strict SKY130 relaxes M4 path_metal/path_via to the M2 grid only when `ALIGN_SKY130_STRICT_RELAX_M4_PATHS=1`.
 
 ## Phase 1 (Routing Grid Alignment) – Research Notes
 - The initial off-grid reports were caused by a scaling mismatch in `sky130_m4_grid_report.py` (viewer JSON is already scaled back to PDK units).
