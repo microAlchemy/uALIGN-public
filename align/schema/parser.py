@@ -73,6 +73,29 @@ class SpiceParser:
         self._scope = [self.circuit]
 
     @staticmethod
+    def _infer_base_model(model_name, *, pin_count=None, prefix=None):
+        name = model_name.upper()
+        base = None
+        if "NFET" in name or "NMOS" in name:
+            base = "NMOS"
+        elif "PFET" in name or "PMOS" in name:
+            base = "PMOS"
+        elif "CAP" in name:
+            base = "CAP"
+        elif "RES" in name:
+            base = "RES"
+        elif "IND" in name:
+            base = "IND"
+        if base is None and prefix in ("C", "R", "L"):
+            base = {"C": "CAP", "R": "RES", "L": "IND"}[prefix]
+        if pin_count is not None:
+            if base in ("NMOS", "PMOS") and pin_count != 4:
+                return None
+            if base in ("CAP", "RES", "IND") and pin_count != 2:
+                return None
+        return base
+
+    @staticmethod
     def _generate_tokens(text):
         scanner = spice_pat.scanner(text)
         for m in iter(scanner.match, None):
@@ -150,11 +173,20 @@ class SpiceParser:
         if self.library.find(model):
             model = self.library.find(model)
         else:
-            logger.warning(f"Unknown device found {model} {kwargs}, creating a generic model for this")
             with set_context(self.library):
-                # Use generic pin names
-                pins = [f"p{i}" for i in range(len(args))]
-                self.library.append(Model(name=model, pins=pins, parameters={k: '1' for k in kwargs.keys()}, prefix=''))
+                base = self._infer_base_model(model, pin_count=len(args), prefix=name[0])
+                if base:
+                    logger.warning(
+                        f"Unknown device found {model} {kwargs}, inferring base {base} for this model"
+                    )
+                    self.library.append(Model(name=model, base=base, parameters={k: '1' for k in kwargs.keys()}))
+                else:
+                    logger.warning(
+                        f"Unknown device found {model} {kwargs}, creating a generic model for this"
+                    )
+                    # Use generic pin names
+                    pins = [f"p{i}" for i in range(len(args))]
+                    self.library.append(Model(name=model, pins=pins, parameters={k: '1' for k in kwargs.keys()}, prefix=''))
             model = self.library.find(model)
 
         assert model is not None, (model, name, args, kwargs)
