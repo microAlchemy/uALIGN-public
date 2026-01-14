@@ -172,6 +172,16 @@ class SpiceParser:
         else:
             model = args.pop()
 
+        model_name = model.upper()
+        if (
+            len(args) == 3
+            and model_name.startswith("SKY130_FD_PR__RES_")
+        ):
+            raise NotImplementedError(
+                f"3-terminal SKY130 resistors are unsupported: {model_name} "
+                f"with pins {args}. Use 2-terminal variants or black_box this device."
+            )
+
         if self.library.find(model):
             model = self.library.find(model)
         else:
