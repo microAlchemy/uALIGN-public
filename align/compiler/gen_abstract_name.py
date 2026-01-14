@@ -136,17 +136,27 @@ class PrimitiveLibrary():
             element.add_abs_name(unique_name)
             self.add_primitve(model)
             base_model = get_base_model(element.parent.parent, element.name)
-            if (
-                base_model
-                and base_model.upper().startswith("RES")
-                and self.pdk_dir.name.upper() == "SKY130_PDK"
-                and os.getenv("ALIGN_SKY130_ENABLE_RES", "").lower() not in {"1", "true", "yes", "on"}
-            ):
-                raise NotImplementedError(
-                    "SKY130 resistor generator is not DRC-clean yet; set ALIGN_SKY130_ENABLE_RES=1 to force."
-                )
+            use_blackbox = False
+            if base_model and base_model.upper().startswith("RES") and self.pdk_dir.name.upper() == "SKY130_PDK":
+                if os.getenv("ALIGN_SKY130_RES_BLACKBOX", "").lower() in {"1", "true", "yes", "on"}:
+                    use_blackbox = True
+                elif os.getenv("ALIGN_SKY130_ENABLE_RES", "").lower() not in {"1", "true", "yes", "on"}:
+                    raise NotImplementedError(
+                        "SKY130 resistor generator is not DRC-clean yet; set ALIGN_SKY130_ENABLE_RES=1 to force "
+                        "or ALIGN_SKY130_RES_BLACKBOX=1 with -b <dir> to use resistor macros."
+                    )
             generator_name = self._generator_name_from_base(base_model) or model
             self.create_subckt(element, unique_name, generator_name=generator_name)
+            if use_blackbox:
+                primitive_subckt = self.plib.find(unique_name)
+                if primitive_subckt:
+                    gen_constraints = [
+                        const for const in primitive_subckt.constraints
+                        if isinstance(const, constraint.Generator)
+                    ]
+                    if not any(const.name == "black_box" for const in gen_constraints):
+                        with set_context(primitive_subckt.constraints):
+                            primitive_subckt.constraints.append(constraint.Generator(name="black_box"))
         else:
             base_model = get_base_model(element.parent.parent, element.name)
             msg = (

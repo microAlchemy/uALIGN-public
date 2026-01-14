@@ -1,4 +1,5 @@
 import collections
+import os
 import re
 import logging
 
@@ -176,6 +177,7 @@ class SpiceParser:
         if (
             len(args) == 3
             and model_name.startswith("SKY130_FD_PR__RES_")
+            and os.getenv("ALIGN_SKY130_RES_BLACKBOX", "").lower() not in {"1", "true", "yes", "on"}
         ):
             raise NotImplementedError(
                 f"3-terminal SKY130 resistors are unsupported: {model_name} "

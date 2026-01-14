@@ -89,6 +89,7 @@
 - Optional unit coercion: set `ALIGN_SKY130_ASSUME_UM=1` to interpret large unitless `W/L` values as microns (and `AREA` as um^2) during primitive generation.
 - Resistor variants with body pins (3‑terminal `res_generic_*`) are not supported; they now fail fast with a clear error and only 2‑terminal usage is accepted today.
 - SKY130 resistor generator is disabled by default due to DRC shorts/opens; set `ALIGN_SKY130_ENABLE_RES=1` to force (not DRC-clean).
+- For stable resistor usage, set `ALIGN_SKY130_RES_BLACKBOX=1` and supply `-b <dir>` with GDS (and optional LEF) for each resistor primitive name (e.g., `RES_2T_*.gds`). The names are visible in `1_topology/__primitives_library__.json` or `2_primitives/__primitives__.json`.
 - CAP/RES multiplicity parameters (`M`, `MF`, `MULT`) scale geometry/effective size in `gen_param` (caps scale L/W by sqrt(mult); resistors scale R by 1/mult).
 - SKY130 `generator_class()` now only maps known aliases and `sky130_fd_pr__*` device names; top-level circuit names containing `cap`/`res` no longer misclassify as primitives.
 - Inductors are unsupported (no generator); netlists using `.model inductor` will error out.
@@ -99,6 +100,14 @@
 - CapMIMContact/CapMIMLayer connectivity is not validated; enclosure checks are enforced in DRC.
 - Strict mode defaults to the PDK `M4.Pitch`/`M4.Offset`.
 - Strict SKY130 relaxes M4 path_metal/path_via to the M2 grid only when `ALIGN_SKY130_STRICT_RELAX_M4_PATHS=1`.
+
+## Future: Full RES/RES3 Support
+- Add `RES3` base model (PLUS/MINUS/BODY) and allow base inference for 3‑pin resistors.
+- Implement a SKY130 RES/RES3 generator with proper body contact placement and enclosure rules.
+- Add PDK abstraction entries for resistor layers/contacts (and any required N/P well taps).
+- Update `gen_param` to map `res_generic_*` variants to the correct generator and DRC rules.
+- Add DRC/LVS checks for resistor body isolation and pin connectivity (remove shorts/opens).
+- Add sandbox tests for 2‑pin and 3‑pin resistor variants, including multiplicity and black_box fallback.
 
 ## Phase 1 (Routing Grid Alignment) – Research Notes
 - The initial off-grid reports were caused by a scaling mismatch in `sky130_m4_grid_report.py` (viewer JSON is already scaled back to PDK units).
@@ -122,6 +131,7 @@
   - Allow SKY130 CAP/RES variants to size from `L/W` or `AREA` parameters (fallback to `VALUE`/`R`).
   - Expanded SKY130 `models.sp` entries to accept `L/W/AREA` and multiplicity params for cap/res variants.
   - Set default CAP/RES L/W/R/AREA params to `0` so explicit L/W/AREA inputs are not masked by defaults.
+  - Disabled SKY130 resistor generator by default; added optional black_box tagging for resistor primitives.
 - [x] Phase 3: Validation & checkpoints
   - Added sandbox smoke test script; executed successfully in `.venv_sky130`.
   - `five_transistor_ota` completes end-to-end (placement + routing + GDS).
@@ -220,6 +230,8 @@
   - Verifies 3‑terminal SKY130 resistors fail fast with a clear error.
 - `sandbox_tests/sky130_res_disabled.py`
   - Verifies SKY130 resistor generation is disabled by default.
+- `sandbox_tests/sky130_res_blackbox.py`
+  - Verifies SKY130 resistor primitives are tagged `black_box` when `ALIGN_SKY130_RES_BLACKBOX=1` is set.
 - `sandbox_tests/sky130_cap_mult_smoke.py`
   - Validates CAP multiplicity scaling in SKY130 `gen_param`.
 - `sandbox_tests/sky130_res_mult_smoke.py`
