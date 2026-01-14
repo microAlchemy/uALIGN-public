@@ -130,6 +130,8 @@ class PrimitiveLibrary():
             gen_const = [True for const in generator.constraints if isinstance(const, constraint.Generator)]
             if gen_const and not self.plib.find(generator.name):
                 self.add_primitve(generator.name)
+            if self._is_sky130_res_template(generator):
+                self._apply_sky130_res_policy(generator)
         elif get_generator(element.model, self.pdk_dir):
             block_arg = gen_key(element.parameters)
             unique_name = f'{model}{block_arg}'
@@ -184,3 +186,29 @@ class PrimitiveLibrary():
                             self.plib.append(self.ckt_lib.find(e.model))
             with set_context(self.plib):
                 self.plib.append(primitive)
+
+    @staticmethod
+    def _has_generator(subckt, name):
+        return any(
+            isinstance(c, constraint.Generator) and c.name.lower() == name.lower()
+            for c in subckt.constraints
+        )
+
+    def _is_sky130_res_template(self, subckt):
+        return (
+            self.pdk_dir.name.upper() == "SKY130_PDK"
+            and self._has_generator(subckt, "res")
+        )
+
+    def _apply_sky130_res_policy(self, subckt):
+        use_blackbox = os.getenv("ALIGN_SKY130_RES_BLACKBOX", "").lower() in {"1", "true", "yes", "on"}
+        if use_blackbox:
+            if not self._has_generator(subckt, "black_box"):
+                with set_context(subckt.constraints):
+                    subckt.constraints.append(constraint.Generator(name="black_box"))
+            return
+        if os.getenv("ALIGN_SKY130_ENABLE_RES", "").lower() not in {"1", "true", "yes", "on"}:
+            raise NotImplementedError(
+                "SKY130 resistor generator is not DRC-clean yet; set ALIGN_SKY130_ENABLE_RES=1 to force "
+                "or ALIGN_SKY130_RES_BLACKBOX=1 with -b <dir> to use resistor macros."
+            )
