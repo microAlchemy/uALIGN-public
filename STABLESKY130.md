@@ -26,6 +26,7 @@
 - `current_mirror_ota`, `five_transistor_ota`, and `umich_test_case` complete with empty `.errors` files when `ALIGN_SKY130_STRICT=1` is set (strict uses M4 pitch/offset defaults and relaxes M4 path_metal/path_via to M2 grid by default).
 - `umich_test_case` completes with `ALIGN_SKY130_STRICT=1`, `ALIGN_SKY130_STRICT_RELAX_M4_PATHS=0`, and `ALIGN_SKY130_STRICT_M4_BLOCK_GRID=1`; `.errors` files are empty and top-level block placements align to the M4 grid.
 - `umich_test_case` completes with `ALIGN_SKY130_STRICT_CAPMIM_M4_ENC=1`; CapMIMLayer is enclosed by M4 in strict mode.
+- `buffer`, `inverter`, `five_transistor_ota`, `current_mirror_ota`, and `telescopic_ota` complete with strict no-relax flags and `ALIGN_SKY130_STRICT_CAPMIM_M4_ENC=1`.
 
 ## Baseline Status (Before Changes)
 - Running `schematic2layout.py` from the repo without installation fails due to missing dependencies:
@@ -182,6 +183,8 @@
   - Use `--fail-on-offgrid` for strict gating in future phases.
 - `sandbox_tests/sky130_umich_strict_no_relax.py`
   - Runs UMICH with strict + no-relax + M4 block grid flags, forces SA/enum placement, asserts empty `.errors`, and checks top-level block placements align to the M4 grid.
+- `sandbox_tests/sky130_strict_examples.py`
+  - Runs `buffer`, `inverter`, `five_transistor_ota`, `current_mirror_ota`, and `telescopic_ota` with strict no-relax flags; asserts empty `.errors` files.
 
 ## Integration Attempts
 - `five_transistor_ota` run attempted via:
