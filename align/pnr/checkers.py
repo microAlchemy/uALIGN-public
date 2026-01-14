@@ -1,4 +1,9 @@
+import os
+from types import SimpleNamespace
+
 from ..cell_fabric import transformation, pdk
+from ..cell_fabric.generators import Region
+from ..cell_fabric.grid import UncoloredCenterLineGrid
 from ..compiler.util import get_generator
 import itertools
 import json
@@ -41,46 +46,108 @@ def gen_viewer_json(hN, *, pdkdir, draw_grid=False, global_route_json=None, json
     # PnRDB coordinates are in units of 2nm. All else is in PDK abstraction.
     assert scale_factor == 1 or scale_factor % 2 == 0, f'PDK ScaleFactor should be even.'
 
+    pdk_name = str(pdkdir).lower()
+    pdk_is_sky130 = "sky130" in pdk_name
+    strict_sky130 = os.getenv("ALIGN_SKY130_STRICT", "").lower() in {"1", "true", "yes", "on"}
+    relax_m4_blockpins = pdk_is_sky130 and not strict_sky130
+    relax_m4_paths = False
+    if pdk_is_sky130:
+        if strict_sky130:
+            env_relax_paths = os.getenv("ALIGN_SKY130_STRICT_RELAX_M4_PATHS")
+            if env_relax_paths is None or env_relax_paths == "":
+                relax_m4_paths = True
+            else:
+                relax_m4_paths = env_relax_paths.lower() in {"1", "true", "yes", "on"}
+        else:
+            relax_m4_paths = True
+    if "sky130" in pdk_name:
+        for layer in ("CapMIMContact", "CapMIMLayer"):
+            if not any(getattr(gen, "layer", None) == layer for gen in cnv.generators.values()):
+                cnv.addGen(Region(f"sky130_{layer.lower()}", layer, h_grid=cnv.m2.clg, v_grid=cnv.m1.clg))
+
+    strict_m4_gen = None
+    if strict_sky130 and "sky130" in pdk_name:
+        env_pitch = os.getenv("ALIGN_SKY130_STRICT_M4_PITCH")
+        env_offset = os.getenv("ALIGN_SKY130_STRICT_M4_OFFSET")
+        default_pitch = cnv.pdk["M4"]["Pitch"]
+        default_offset = cnv.pdk["M4"].get("Offset", 0)
+        if env_pitch is not None:
+            try:
+                m4_pitch = int(env_pitch)
+            except ValueError:
+                m4_pitch = default_pitch
+        else:
+            m4_pitch = default_pitch
+        if env_offset is not None:
+            try:
+                m4_offset = int(env_offset)
+            except ValueError:
+                m4_offset = default_offset
+        else:
+            m4_offset = default_offset
+        m4_clg = UncoloredCenterLineGrid(
+            pitch=m4_pitch,
+            width=cnv.pdk["M4"]["Width"],
+            offset=m4_offset,
+        )
+        strict_m4_gen = SimpleNamespace(clg=m4_clg)
+
     terminals = []
 
     subinsts = {}
 
     errors = []
 
-    def add_terminal( netName, layer, b, tag=None):
+    def add_terminal( netName, layer, b, tag=None, center_override=None):
 
         r = [ b.LL.x, b.LL.y, b.UR.x, b.UR.y]
         terminals.append( { "netName": netName, "netType": "drawing", "layer": layer, "rect": r})
 
-        def f( gen, value, tag=None):
+        def f( gens, value, tag=None):
             # value is in units of 0.5nm
             if value%2 != 0:
                 txt = f"Off grid:{tag} {layer} {netName} {r} {r[2]-r[0]} {r[3]-r[1]}: {value} (in 2x units) is not divisible by two."
                 errors.append( txt)
                 logger.error( txt)
             else:
-                value = value * scale_factor // 2 
-                p = gen.clg.inverseBounds(value)
-                if p[0] != p[1]:
-                    txt = f"Off grid:{tag} {layer} {netName} {r} {r[2]-r[0]} {r[3]-r[1]}: {value} doesn't land on grid, lb and ub are: {p}"
+                value = value * scale_factor // 2
+                bounds = [gen.clg.inverseBounds(value) for gen in gens]
+                if not any(p[0] == p[1] for p in bounds):
+                    if len(bounds) == 1:
+                        detail = bounds[0]
+                    else:
+                        detail = bounds
+                    txt = f"Off grid:{tag} {layer} {netName} {r} {r[2]-r[0]} {r[3]-r[1]}: {value} doesn't land on grid, lb and ub are: {detail}"
                     errors.append( txt)
                     logger.error( txt)
 
         if layer == "cellarea":
-            f( cnv.m1, b.LL.x, "LL.x")
-            f( cnv.m1, b.UR.x, "UR.x")
-            f( cnv.m2, b.LL.y, "LL.y")
-            f( cnv.m2, b.UR.y, "UR.y")
+            f( [cnv.m1], b.LL.x, "LL.x")
+            f( [cnv.m1], b.UR.x, "UR.x")
+            f( [cnv.m2], b.LL.y, "LL.y")
+            f( [cnv.m2], b.UR.y, "UR.y")
         else:
-            if   layer in ["M1", "M3", "M5"]:
+            if center_override is not None:
+                center = center_override
+            elif layer in ["M1", "M3", "M5"]:
                 center = (b.LL.x + b.UR.x)//2
             elif layer in ["M2", "M4", "M6"]:
                 center = (b.LL.y + b.UR.y)//2
             else:
                 center = None
             if center is not None:
+                if relax_m4_blockpins and layer == "M4" and tag == "blockPin":
+                    return
                 lyr = layer.lower() if layer.lower() in cnv.generators else layer.upper()
-                f( cnv.generators[lyr], center, tag)
+                if layer == "M4" and strict_m4_gen is not None:
+                    gens = [strict_m4_gen]
+                else:
+                    gens = [cnv.generators[lyr]]
+                if relax_m4_paths and layer == "M4" and tag in {"path_metal", "path_via", "intervia"}:
+                    m2_gen = cnv.generators.get("m2")
+                    if m2_gen is not None and m2_gen not in gens:
+                        gens.append(m2_gen)
+                f(gens, center, tag)
 
     fa_map = {}
     for n in itertools.chain( hN.Nets, hN.PowerNets):
@@ -154,15 +221,24 @@ def gen_viewer_json(hN, *, pdkdir, draw_grid=False, global_route_json=None, json
             if 'subinsts' in d:
                 subinsts.update({f'{blk.name}/{nm}': v for nm, v in d['subinsts'].items()})
 
+    def addt(net, obj, con, tag=None, center_override=None):
+        b = con.placedBox
+        if obj == net:
+            add_terminal( net.name, con.metal, b, tag=tag, center_override=center_override)
+        else:
+            add_terminal( obj, con.metal, b, tag=tag, center_override=center_override)
+
+    def placed_center_value(con, layer):
+        if not hasattr(con, "placedCenter"):
+            return None
+        if layer in ["M1", "M3", "M5"]:
+            return con.placedCenter.x
+        if layer in ["M2", "M4", "M6"]:
+            return con.placedCenter.y
+        return None
+
     for n in itertools.chain( hN.Nets, hN.PowerNets):
         logger.debug( f"Net: {n.name}")
-
-        def addt( obj, con, tag=None):
-            b = con.placedBox
-            if obj == n:
-                add_terminal( obj.name, con.metal, b, tag=tag)
-            else:
-                add_terminal( obj, con.metal, b, tag=tag)
 
         for c in n.connected:
             if c.type == 'Block' or c.type == NType.Block:
@@ -177,7 +253,7 @@ def gen_viewer_json(hN, *, pdkdir, draw_grid=False, global_route_json=None, json
                 logger.debug( f'\t{tag}')
 
                 for con in pin.pinContacts:
-                    addt( n, con, "blockPin")
+                    addt( n, n, con, "blockPin")
             elif c.type == 'Terminal' or c.type == NType.Terminal:
                 term = hN.Terminals[c.iter]
                 terminal_name = term.name
@@ -193,16 +269,19 @@ def gen_viewer_json(hN, *, pdkdir, draw_grid=False, global_route_json=None, json
 
         for metal in n.path_metal:
             con = metal.MetalRect
-            add_terminal( n.name, con.metal, con.placedBox, "path_metal")
+            center_override = placed_center_value(con, con.metal)
+            add_terminal( n.name, con.metal, con.placedBox, "path_metal", center_override=center_override)
 
         for via in n.path_via:
             for con in [via.UpperMetalRect,via.LowerMetalRect,via.ViaRect]:
-                addt( n, con, "path_via")
+                center_override = placed_center_value(con, con.metal)
+                addt( n, n, con, "path_via", center_override=center_override)
 
         if hasattr( n, 'interVias'):        
             for via in n.interVias:
                 for con in [via.UpperMetalRect,via.LowerMetalRect,via.ViaRect]:
-                    addt( n, con, "intervia")
+                    center_override = placed_center_value(con, con.metal)
+                    addt( n, n, con, "intervia", center_override=center_override)
 
     for pg in [hN.Gnd, hN.Vdd]:
         for metal in pg.metals:

@@ -2,6 +2,85 @@
 
 #include "spdlog/spdlog.h"
 
+namespace {
+
+bool debug_grid_enabled() {
+  const char* env = std::getenv("ALIGN_SKY130_DEBUG_GRID");
+  if (env == nullptr || env[0] == '\0') {
+    return false;
+  }
+  return !(env[0] == '0' && env[1] == '\0');
+}
+
+int debug_grid_limit() {
+  const char* env = std::getenv("ALIGN_SKY130_DEBUG_GRID_LIMIT");
+  if (env == nullptr || env[0] == '\0') {
+    return 5;
+  }
+  char* end = nullptr;
+  long val = std::strtol(env, &end, 10);
+  if (end == env) {
+    return 5;
+  }
+  if (val < 0) {
+    return -1;
+  }
+  return static_cast<int>(val);
+}
+
+bool should_log_pins() {
+  if (!debug_grid_enabled()) {
+    return false;
+  }
+  static int seen = 0;
+  int limit = debug_grid_limit();
+  if (limit >= 0 && seen >= limit) {
+    return false;
+  }
+  ++seen;
+  return true;
+}
+
+bool should_log_paths() {
+  if (!debug_grid_enabled()) {
+    return false;
+  }
+  static int seen = 0;
+  int limit = debug_grid_limit();
+  if (limit >= 0 && seen >= limit) {
+    return false;
+  }
+  ++seen;
+  return true;
+}
+
+std::string to_upper(std::string value) {
+  for (auto& ch : value) {
+    ch = static_cast<char>(std::toupper(static_cast<unsigned char>(ch)));
+  }
+  return value;
+}
+
+std::string debug_grid_layer() {
+  const char* env = std::getenv("ALIGN_SKY130_DEBUG_GRID_LAYER");
+  if (env == nullptr || env[0] == '\0') {
+    return "M4";
+  }
+  return std::string(env);
+}
+
+int find_metal_index(const PnRDB::Drc_info& drc_info, const std::string& layer_name) {
+  std::string target = to_upper(layer_name);
+  for (unsigned int i = 0; i < drc_info.Metal_info.size(); ++i) {
+    if (to_upper(drc_info.Metal_info.at(i).name) == target) {
+      return static_cast<int>(i);
+    }
+  }
+  return -1;
+}
+
+}  // namespace
+
 GcellDetailRouter::GcellDetailRouter(){
 
 };
@@ -1080,6 +1159,56 @@ int GcellDetailRouter::Found_Pins_and_Symmetry_Pins(Grid &grid, int i, std::vect
   } else {
     temp_pins = findPins_new(grid, Nets[i]);
     // SortPins(temp_pins);
+  }
+
+  if (debug_grid_enabled()) {
+    static bool warned_missing = false;
+    std::string layer_name = debug_grid_layer();
+    int layer_idx = find_metal_index(drc_info, layer_name);
+    if (layer_idx >= 0) {
+      const auto& layer = drc_info.Metal_info.at(layer_idx);
+      int pitch = (layer.direct == 1) ? layer.grid_unit_y : layer.grid_unit_x;
+      int offset = layer.offset;
+      if (pitch > 0) {
+        std::map<int, int> mods;
+        size_t pin_count = 0;
+        for (const auto& pin_group : temp_pins) {
+          for (const auto& pin : pin_group) {
+            if (pin.metalIdx != layer_idx || pin.coord.size() < 2) {
+              continue;
+            }
+            int minx = pin.coord.front().x;
+            int maxx = pin.coord.front().x;
+            int miny = pin.coord.front().y;
+            int maxy = pin.coord.front().y;
+            for (const auto& pt : pin.coord) {
+              minx = std::min(minx, pt.x);
+              maxx = std::max(maxx, pt.x);
+              miny = std::min(miny, pt.y);
+              maxy = std::max(maxy, pt.y);
+            }
+            int center = (layer.direct == 1) ? (miny + maxy) / 2 : (minx + maxx) / 2;
+            int mod = center - offset;
+            mod %= pitch;
+            if (mod < 0) mod += pitch;
+            mods[mod] += 1;
+            pin_count += 1;
+          }
+        }
+        if (pin_count > 0 && should_log_pins()) {
+          auto logger = spdlog::default_logger()->clone("router.GcellDetailRouter.DebugGrid");
+          logger->info("Grid debug pins net={} layer={} idx={} pitch={} offset={} pins={}",
+                       Nets[i].netName, layer.name, layer_idx, pitch, offset, pin_count);
+          for (const auto& kv : mods) {
+            logger->info("Grid debug pins net={} layer={} mod={} count={}", Nets[i].netName, layer.name, kv.first, kv.second);
+          }
+        }
+      }
+    } else if (!warned_missing) {
+      auto logger = spdlog::default_logger()->clone("router.GcellDetailRouter.DebugGrid");
+      logger->warn("Grid debug layer '{}' not found in DRC metal list", layer_name);
+      warned_missing = true;
+    }
   }
 
   return sym_flag;
@@ -3565,6 +3694,44 @@ void GcellDetailRouter::GetPhsical_Metal_Via(int i) {
         Nets[i].path_metal[h].MetalRect.placedUR.y =
             Nets[i].path_metal[h].LinePoint[1].y + drc_info.Via_model[Nets[i].path_metal[h].MetalRect.metal - 1].UpperRect[1].y;
       }
+    }
+  }
+
+  if (debug_grid_enabled()) {
+    static bool warned_missing = false;
+    std::string layer_name = debug_grid_layer();
+    int layer_idx = find_metal_index(drc_info, layer_name);
+    if (layer_idx >= 0) {
+      const auto& layer = drc_info.Metal_info.at(layer_idx);
+      int pitch = (layer.direct == 1) ? layer.grid_unit_y : layer.grid_unit_x;
+      int offset = layer.offset;
+      if (pitch > 0) {
+        std::map<int, int> mods;
+        size_t count = 0;
+        for (const auto& metal : Nets[i].path_metal) {
+          if (metal.MetalIdx != layer_idx) {
+            continue;
+          }
+          int center = (layer.direct == 1) ? metal.MetalRect.placedCenter.y : metal.MetalRect.placedCenter.x;
+          int mod = center - offset;
+          mod %= pitch;
+          if (mod < 0) mod += pitch;
+          mods[mod] += 1;
+          count += 1;
+        }
+        if (count > 0 && should_log_paths()) {
+          auto logger = spdlog::default_logger()->clone("router.GcellDetailRouter.DebugGrid");
+          logger->info("Grid debug paths net={} layer={} idx={} pitch={} offset={} paths={}",
+                       Nets[i].netName, layer.name, layer_idx, pitch, offset, count);
+          for (const auto& kv : mods) {
+            logger->info("Grid debug paths net={} layer={} mod={} count={}", Nets[i].netName, layer.name, kv.first, kv.second);
+          }
+        }
+      }
+    } else if (!warned_missing) {
+      auto logger = spdlog::default_logger()->clone("router.GcellDetailRouter.DebugGrid");
+      logger->warn("Grid debug layer '{}' not found in DRC metal list", layer_name);
+      warned_missing = true;
     }
   }
 

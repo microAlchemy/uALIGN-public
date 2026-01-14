@@ -100,6 +100,16 @@ def remove_dummies(library, dummy_hiers, top):
                             pins = {}
                             for p, v in y.pins.items():
                                 pins[p] = ele.pins[v]
+                            inst_name = ele.name
+                            model_def = library.find(y.model)
+                            if model_def and model_def.prefix:
+                                prefix = model_def.prefix.upper()
+                                if not inst_name.upper().startswith(prefix):
+                                    inst_name = f"{prefix}{inst_name}"
+                                    suffix = 1
+                                    while other_ckt.get_element(inst_name):
+                                        inst_name = f"{prefix}{ele.name}_{suffix}"
+                                        suffix += 1
                             # Update parameters
                             for k, v in ele.parameters.items():
                                 if k in y.parameters:
@@ -107,7 +117,7 @@ def remove_dummies(library, dummy_hiers, top):
                             logger.debug(f"new instance parameters: {y.parameters}")
                             other_ckt.elements.append(
                                 Instance(
-                                    name=ele.name,
+                                    name=inst_name,
                                     model=y.model,
                                     pins=pins,
                                     parameters=y.parameters

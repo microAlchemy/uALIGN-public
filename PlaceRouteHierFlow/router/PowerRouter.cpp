@@ -1,8 +1,76 @@
 #include "PowerRouter.h"
 
+#include <cctype>
 #include <cmath>
+#include <cstdlib>
 
 #include "spdlog/spdlog.h"
+
+namespace {
+
+bool debug_grid_enabled() {
+  const char* env = std::getenv("ALIGN_SKY130_DEBUG_GRID");
+  if (env == nullptr || env[0] == '\0') {
+    return false;
+  }
+  return !(env[0] == '0' && env[1] == '\0');
+}
+
+int debug_grid_limit() {
+  const char* env = std::getenv("ALIGN_SKY130_DEBUG_GRID_LIMIT");
+  if (env == nullptr || env[0] == '\0') {
+    return 5;
+  }
+  char* end = nullptr;
+  long val = std::strtol(env, &end, 10);
+  if (end == env) {
+    return 5;
+  }
+  if (val < 0) {
+    return -1;
+  }
+  return static_cast<int>(val);
+}
+
+bool should_log_power() {
+  if (!debug_grid_enabled()) {
+    return false;
+  }
+  static int seen = 0;
+  int limit = debug_grid_limit();
+  if (limit >= 0 && seen >= limit) {
+    return false;
+  }
+  ++seen;
+  return true;
+}
+
+std::string to_upper(std::string value) {
+  for (auto& ch : value) {
+    ch = static_cast<char>(std::toupper(static_cast<unsigned char>(ch)));
+  }
+  return value;
+}
+
+std::string debug_grid_layer() {
+  const char* env = std::getenv("ALIGN_SKY130_DEBUG_GRID_LAYER");
+  if (env == nullptr || env[0] == '\0') {
+    return "M4";
+  }
+  return std::string(env);
+}
+
+int find_metal_index(const PnRDB::Drc_info& drc_info, const std::string& layer_name) {
+  std::string target = to_upper(layer_name);
+  for (unsigned int i = 0; i < drc_info.Metal_info.size(); ++i) {
+    if (to_upper(drc_info.Metal_info.at(i).name) == target) {
+      return static_cast<int>(i);
+    }
+  }
+  return -1;
+}
+
+}  // namespace
 
 // one : creation of power gird
 // create power grid (creation: drc-info; return to node: based on node grid, create source and dest) create once or separately?
@@ -1110,6 +1178,49 @@ void PowerRouter::Physical_metal_via_power_grid(RouterDB::PowerGrid& temp_grid) 
       temp_grid.merged_metals[i].MetalRect.placedLL.y = temp_grid.merged_metals[i].LinePoint[0].y - temp_grid.merged_metals[i].width / 2;
       temp_grid.merged_metals[i].MetalRect.placedUR.x = temp_grid.merged_metals[i].LinePoint[1].x + temp_grid.merged_metals[i].width / 2;
       temp_grid.merged_metals[i].MetalRect.placedUR.y = temp_grid.merged_metals[i].LinePoint[1].y + temp_grid.merged_metals[i].width / 2;
+    }
+  }
+
+  if (debug_grid_enabled()) {
+    static bool warned_missing = false;
+    std::string layer_name = debug_grid_layer();
+    int layer_idx = find_metal_index(drc_info, layer_name);
+    if (layer_idx >= 0) {
+      const auto& layer = drc_info.Metal_info.at(layer_idx);
+      int pitch = (layer.direct == 1) ? layer.grid_unit_y : layer.grid_unit_x;
+      int offset = layer.offset;
+      auto log_mods = [&](const char* group, const std::vector<RouterDB::Metal>& metals) {
+        if (pitch <= 0) {
+          return;
+        }
+        std::map<int, int> mods;
+        size_t count = 0;
+        for (const auto& metal : metals) {
+          if (metal.MetalIdx != layer_idx) {
+            continue;
+          }
+          int center = (layer.direct == 1) ? metal.MetalRect.placedCenter.y : metal.MetalRect.placedCenter.x;
+          int mod = center - offset;
+          mod %= pitch;
+          if (mod < 0) mod += pitch;
+          mods[mod] += 1;
+          count += 1;
+        }
+        if (count > 0 && should_log_power()) {
+          auto logger = spdlog::default_logger()->clone("router.PowerRouter.DebugGrid");
+          logger->info("Power grid debug layer={} idx={} pitch={} offset={} group={} count={}",
+                       layer.name, layer_idx, pitch, offset, group, count);
+          for (const auto& kv : mods) {
+            logger->info("Power grid debug layer={} group={} mod={} count={}", layer.name, group, kv.first, kv.second);
+          }
+        }
+      };
+      log_mods("metals", temp_grid.metals);
+      log_mods("merged_metals", temp_grid.merged_metals);
+    } else if (!warned_missing) {
+      auto logger = spdlog::default_logger()->clone("router.PowerRouter.DebugGrid");
+      logger->warn("Power grid debug layer '{}' not found in DRC metal list", layer_name);
+      warned_missing = true;
     }
   }
 

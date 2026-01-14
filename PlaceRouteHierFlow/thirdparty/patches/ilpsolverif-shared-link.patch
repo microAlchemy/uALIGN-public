@@ -1,0 +1,10 @@
+--- a/ILPSolverIf/CMakeLists.txt
++++ b/ILPSolverIf/CMakeLists.txt
+@@ -12,6 +12,7 @@
+ add_dependencies(ILPSolverIf cbc symphony)
+ add_dependencies(ILPSolverIf_shared cbc symphony)
+ target_link_libraries(ILPSolverIf INTERFACE ${symphony_LIBRARIES} ${cbc_LIBRARIES})
++target_link_libraries(ILPSolverIf_shared PRIVATE ${symphony_LIBRARIES} ${cbc_LIBRARIES})
+ set_target_properties(ILPSolverIf PROPERTIES PUBLIC_HEADER "ILPSolverIf/ILPSolverIf.h")
+ message(STATUS "cbc dep libs ${cbc_LIBRARIES} ${CMAKE_INSTALL_PREFIX}/lib")
+ install(FILES ${cbc_LIBRARIES} DESTINATION "${CMAKE_INSTALL_PREFIX}/lib")

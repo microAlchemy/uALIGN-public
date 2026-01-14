@@ -2,6 +2,7 @@
 #include "Placer.h"
 
 #include "spdlog/spdlog.h"
+#include <cstdlib>
 
 std::mt19937_64 Placer::_rng{0};
 
@@ -218,6 +219,27 @@ void Placer::setPlacementInfoFromJson(std::vector<PnRDB::hierNode>& nodeVec, str
 std::map<double, std::pair<SeqPair, ILP_solver>> Placer::PlacementCoreAspectRatio_ILP(design& designData, SeqPair& curr_sp, ILP_solver& curr_sol, int mode,
                                                                                       int nodeSize, int effort, PnRDB::Drc_info& drcInfo) {
   auto logger = spdlog::default_logger()->clone("placer.Placer.PlacementCoreAspectRatio_ILP");
+  const char* trace_sa_env = std::getenv("ALIGN_PLACER_TRACE_SA");
+  const bool trace_sa = trace_sa_env != nullptr && std::string(trace_sa_env) != "0";
+  auto valid_seqpair = [&](const SeqPair& sp) -> bool {
+    const int n = designData.GetSizeofBlocks();
+    if ((int)sp.posPair.size() != n || (int)sp.negPair.size() != n || (int)sp.selected.size() != n) return false;
+    std::vector<int> seen_pos(n, 0), seen_neg(n, 0);
+    for (int v : sp.posPair) {
+      if (v < 0 || v >= n) return false;
+      if (++seen_pos[v] > 1) return false;
+    }
+    for (int v : sp.negPair) {
+      if (v < 0 || v >= n) return false;
+      if (++seen_neg[v] > 1) return false;
+    }
+    for (int i = 0; i < n; ++i) {
+      const int vcount = static_cast<int>(designData.Blocks.at(i).size());
+      if (vcount <= 0) return false;
+      if (sp.selected[i] < 0 || sp.selected[i] >= vcount) return false;
+    }
+    return true;
+  };
 
   // Mode 0: graph bias; Mode 1: graph bias + net margin; Others: no bias/margin
   // cout<<"PlacementCore\n";
@@ -246,9 +268,20 @@ std::map<double, std::pair<SeqPair, ILP_solver>> Placer::PlacementCoreAspectRati
     logger->debug("Random number generator seed={0}", seed);
   }
 
-  if (curr_sp.Enumerate()) {
+  const char* skip_enum_env = std::getenv("ALIGN_PLACER_SKIP_ENUM");
+  const bool skip_enum = skip_enum_env != nullptr && std::string(skip_enum_env) != "0";
+  if (!skip_enum && curr_sp.Enumerate()) {
     size_t cnt{0};
     while (!curr_sp.EnumExhausted()) {
+      if (!valid_seqpair(curr_sp)) {
+        if (trace_sa) {
+          logger->warn("sa_trace: invalid seqpair during enumeration; skipping candidate");
+        }
+        curr_sp.PerturbationNew(designData);
+        ++cnt;
+        if (cnt >= std::max(static_cast<size_t>(1), hyper.SA_MAX_ITER)) break;
+        continue;
+      }
       ILP_solver tsol(designData, hyper.ilp_solver);
       curr_cost = tsol.GenerateValidSolution(designData, curr_sp, drcInfo, hyper.NUM_THREADS);
       tsol.cost = curr_cost;
@@ -299,6 +332,10 @@ std::map<double, std::pair<SeqPair, ILP_solver>> Placer::PlacementCoreAspectRati
   curr_sol.cost = curr_cost;
   oData[curr_cost] = std::make_pair(curr_sp, curr_sol);
   ReshapeSeqPairMap(oData, nodeSize);
+  const char* skip_sa_env = std::getenv("ALIGN_PLACER_SKIP_SA");
+  if (skip_sa_env != nullptr && std::string(skip_sa_env) != "0") {
+    return oData;
+  }
 
   // Simulated annealing
   double T = hyper.T_INT;
@@ -310,6 +347,7 @@ std::map<double, std::pair<SeqPair, ILP_solver>> Placer::PlacementCoreAspectRati
   float total_update_number = log(hyper.T_MIN / hyper.T_INT) / log(hyper.ALPHA);
   int total_candidates = 0;
   int total_candidates_infeasible = 0;
+  int invalid_seqpair = 0;
 
   logger->debug("sa__cost name={0} t_index={1} effort={2} cost={3} temp={4}", designData.name, T_index, 0, curr_cost, T);
 
@@ -333,7 +371,9 @@ std::map<double, std::pair<SeqPair, ILP_solver>> Placer::PlacementCoreAspectRati
       // SY: PerturbationNew honors order and symmetry. What could make the trial_sp infeasible? Aspect ratio, Align?
       int trial_cached = 0;
       while (++trial_cached < hyper.max_cache_hit_count) {
+        if (trace_sa) logger->info("sa_trace: perturb attempt t_index={0} i={1} trial_cached={2}", T_index, i, trial_cached);
         if (!trial_sp.PerturbationNew(designData)) continue;
+        if (trace_sa) logger->info("sa_trace: perturb ok t_index={0} i={1} trial_cached={2}", T_index, i, trial_cached);
         if (!trial_sp.isSeqInCache(designData)) {
           break;
         }
@@ -344,11 +384,19 @@ std::map<double, std::pair<SeqPair, ILP_solver>> Placer::PlacementCoreAspectRati
       ILP_solver trial_sol(designData, hyper.ilp_solver);
       double trial_cost = 0;
       bool fromCache{false};
-      if (!trial_sp.isSeqInCache(designData, &trial_cost)) {
+      if (!valid_seqpair(trial_sp)) {
+        if (trace_sa) {
+          logger->warn("sa_trace: invalid seqpair detected at t_index={0} i={1}; skipping candidate", T_index, i);
+        }
+        ++invalid_seqpair;
+        trial_cost = -1;
+      } else if (!trial_sp.isSeqInCache(designData, &trial_cost)) {
+        if (trace_sa) logger->info("sa_trace: solve start t_index={0} i={1}", T_index, i);
         if (hyper.select_in_ILP)
           trial_cost = trial_sol.GenerateValidSolution_select(designData, trial_sp, drcInfo);
         else
           trial_cost = trial_sol.GenerateValidSolution(designData, trial_sp, drcInfo, hyper.NUM_THREADS);
+        if (trace_sa) logger->info("sa_trace: solve done t_index={0} i={1} cost={2}", T_index, i, trial_cost);
         trial_sp.cacheSeq(designData, trial_cost);
         if (trial_cost >= 0) {
           oData[trial_cost] = std::make_pair(trial_sp, trial_sol);
@@ -409,6 +457,9 @@ std::map<double, std::pair<SeqPair, ILP_solver>> Placer::PlacementCoreAspectRati
   if (num_perturb) mean_cache_miss /= num_perturb;
   logger->debug("sa__summary total_candidates={0} total_candidates_infeasible={1} mean_cache_miss={2}", total_candidates, total_candidates_infeasible,
                mean_cache_miss);
+  if (invalid_seqpair) {
+    logger->debug("sa__summary invalid_seqpair={0}", invalid_seqpair);
+  }
 
   // Write out placement results
   // cout << endl << "Placer-Info: optimal cost = " << curr_cost << endl;
@@ -445,6 +496,8 @@ void Placer::ReshapeSeqPairMap(std::map<double, std::pair<SeqPair, ILP_solver>>&
 
 void Placer::PlacementRegularAspectRatio_ILP(std::vector<PnRDB::hierNode>& nodeVec, string opath, int effort, PnRDB::Drc_info& drcInfo) {
   auto logger = spdlog::default_logger()->clone("placer.Placer.PlacementRegularAspectRatio_ILP");
+  const char* trace_env = std::getenv("ALIGN_PLACER_TRACE");
+  const bool trace_placer = trace_env != nullptr && std::string(trace_env) != "0";
   int nodeSize = nodeVec.size();
 // cout<<"Placer-Info: place "<<nodeVec.back().name<<" in aspect ratio mode "<<endl;
 #ifdef RFLAG
@@ -486,10 +539,15 @@ void Placer::PlacementRegularAspectRatio_ILP(std::vector<PnRDB::hierNode>& nodeV
     // designData.PrintDesign();
     // it->second.PrintSeqPair();
     // std::cout<<"write design "<<idx<<std::endl;
+    if (trace_placer) logger->info("Placer trace: updateTerminalCenter idx={0}", idx);
     it->second.second.updateTerminalCenter(designData, it->second.first);
+    if (trace_placer) logger->info("Placer trace: WritePlacement idx={0}", idx);
     it->second.second.WritePlacement(designData, it->second.first, opath + nodeVec.back().name + "_" + std::to_string(idx) + ".pl");
+    if (trace_placer) logger->info("Placer trace: PlotPlacement idx={0}", idx);
     it->second.second.PlotPlacement(designData, it->second.first, opath + nodeVec.back().name + "_" + std::to_string(idx) + ".plt");
+    if (trace_placer) logger->info("Placer trace: UpdateHierNode idx={0}", idx);
     it->second.second.UpdateHierNode(designData, it->second.first, nodeVec[idx], drcInfo);
+    if (trace_placer) logger->info("Placer trace: done idx={0}", idx);
   }
 }
 
@@ -538,4 +596,3 @@ void Placer::PlacementRegularAspectRatio_ILP_Analytical(std::vector<PnRDB::hierN
   // it->second.second.PlotPlacement(designData, it->second.first, opath + nodeVec.back().name + "_" + std::to_string(idx) + ".plt");
   //}
 }
-

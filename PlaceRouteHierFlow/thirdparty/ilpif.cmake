@@ -10,6 +10,44 @@ endif ()
 FetchContent_GetProperties(ilpsolverif)
 if(NOT ilpsolverif_POPULATED)
   FetchContent_Populate(ilpsolverif)
+  set(_ilpif_patches_dir ${CMAKE_CURRENT_LIST_DIR}/patches)
+  if(EXISTS "${_ilpif_patches_dir}/ilpsolverif-symphony-arm64.patch")
+    execute_process(
+      COMMAND /usr/bin/patch -p1 -N -i ${_ilpif_patches_dir}/ilpsolverif-symphony-arm64.patch
+      WORKING_DIRECTORY ${ilpsolverif_SOURCE_DIR}
+      RESULT_VARIABLE _ilpif_patch_status
+    )
+    if(NOT _ilpif_patch_status EQUAL 0)
+      message(WARNING "ILPSolverIf patch returned ${_ilpif_patch_status}")
+    endif()
+  endif()
+  if(EXISTS "${_ilpif_patches_dir}/ilpsolverif-cbc-macos.patch")
+    execute_process(
+      COMMAND /usr/bin/patch -p1 -N -i ${_ilpif_patches_dir}/ilpsolverif-cbc-macos.patch
+      WORKING_DIRECTORY ${ilpsolverif_SOURCE_DIR}
+      RESULT_VARIABLE _ilpif_cbc_patch_status
+    )
+    if(NOT _ilpif_cbc_patch_status EQUAL 0)
+      message(WARNING "ILPSolverIf CBC patch returned ${_ilpif_cbc_patch_status}")
+    endif()
+  endif()
+  if(EXISTS "${_ilpif_patches_dir}/ilpsolverif-shared-link.patch")
+    execute_process(
+      COMMAND /usr/bin/patch -p1 -N -i ${_ilpif_patches_dir}/ilpsolverif-shared-link.patch
+      WORKING_DIRECTORY ${ilpsolverif_SOURCE_DIR}
+      RESULT_VARIABLE _ilpif_shared_patch_status
+    )
+    if(NOT _ilpif_shared_patch_status EQUAL 0)
+      message(WARNING "ILPSolverIf shared link patch returned ${_ilpif_shared_patch_status}")
+    endif()
+  endif()
+  if(EXISTS "${_ilpif_patches_dir}/symphony-arm64.patch")
+    execute_process(
+      COMMAND ${CMAKE_COMMAND} -E copy_if_different
+              ${_ilpif_patches_dir}/symphony-arm64.patch
+              ${ilpsolverif_SOURCE_DIR}/ILPSolverIf/symphony-arm64.patch
+    )
+  endif()
   set (solver_search_path ${ilpsolverif_SOURCE_DIR}/lib)
   if (DEFINED ENV{BUILD_PLATFORM})
     set (solver_search_path ${ilpsolverif_SOURCE_DIR}/$ENV{BUILD_PLATFORM}/lib)

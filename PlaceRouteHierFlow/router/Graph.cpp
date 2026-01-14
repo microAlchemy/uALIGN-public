@@ -705,10 +705,9 @@ std::vector<int> Graph::dijkstra() {
   dist[source] = 0;
   status[source] = 1;
   distMap.insert(std::pair<double, int>(dist[source], source));
-  int count = 0;
   int v;
   // std::cout<<"graph source "<<source<<" vs graph dest "<<dest<<std::endl;
-  while (status[dest] != 2 && count < (int)graph.size() - 1) {
+  while (status[dest] != 2 && !distMap.empty()) {
     std::vector<int> ulist = minDistancefromMultiMap(distMap);
     // std::cout<<"size of Q: "<<ulist.size()<<std::endl;
     if (ulist.empty()) {
@@ -736,7 +735,6 @@ std::vector<int> Graph::dijkstra() {
         }
       }
     }
-    count++;
   }
 
   printPath(parent, dest, graph.size(), temp_path);

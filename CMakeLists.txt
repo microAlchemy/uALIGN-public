@@ -74,8 +74,14 @@ add_subdirectory(PlaceRouteHierFlow)
 #
 pybind11_extension(PnR)
 install(TARGETS PnR DESTINATION "${CMAKE_INSTALL_PREFIX}/align")
+set(PNR_INSTALL_RPATH "$ORIGIN/thirdparty")
+set(TEST_PNR_INSTALL_RPATH "$ORIGIN/../align/thirdparty")
+if(APPLE)
+  set(PNR_INSTALL_RPATH "@loader_path/thirdparty")
+  set(TEST_PNR_INSTALL_RPATH "@loader_path/../align/thirdparty")
+endif()
 set_target_properties(PnR PROPERTIES
-  INSTALL_RPATH "$ORIGIN/thirdparty"
+  INSTALL_RPATH "${PNR_INSTALL_RPATH}"
   INSTALL_RPATH_USE_LINK_PATH TRUE
 )
 
@@ -87,7 +93,7 @@ set_target_properties(PnR PROPERTIES
 if(CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME AND BUILD_TESTING)
   install(TARGETS test_PnR DESTINATION "${CMAKE_INSTALL_PREFIX}/tests")
   set_target_properties(test_PnR PROPERTIES
-    INSTALL_RPATH "$ORIGIN/../align/thirdparty"
+    INSTALL_RPATH "${TEST_PNR_INSTALL_RPATH}"
     INSTALL_RPATH_USE_LINK_PATH TRUE
   )
 endif()

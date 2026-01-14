@@ -10,7 +10,7 @@ import pathlib
 
 
 from align.schema import SubCircuit, constraint, Library, Instance
-from .util import gen_key, get_generator
+from .util import gen_key, get_generator, get_base_model
 
 logger = logging.getLogger(__name__)
 
@@ -22,6 +22,19 @@ class PrimitiveLibrary():
         self.pdk_dir = pdk_dir
         self.plib = Library(loadbuiltins=False, pdk_models=pdk_models)
         self.ckt_lib = ckt_lib
+
+    @staticmethod
+    def _generator_name_from_base(base_model):
+        if not base_model:
+            return None
+        base = base_model.upper()
+        if 'MOS' in base:
+            return 'MOS'
+        if 'CAP' in base:
+            return 'CAP'
+        if 'RES' in base:
+            return 'RES'
+        return None
 
     def gen_primitive_collateral(self):
         """
@@ -76,7 +89,7 @@ class PrimitiveLibrary():
                 new_subckt.elements.append(new_ele)
             self.plib.append(new_subckt)
 
-    def create_subckt(self, element, name):
+    def create_subckt(self, element, name, generator_name=None):
         """create_subckt
         Adds a subckt in primitive library for a generic device instance if not already existing
         Args:
@@ -86,7 +99,11 @@ class PrimitiveLibrary():
         if not self.plib.find(name):
             logger.debug(f"creating subcircuit for {element}")
             with set_context(self.plib):
-                new_subckt = SubCircuit(name=name, pins=list(element.pins.keys()), generator={"name": element.model})
+                new_subckt = SubCircuit(
+                    name=name,
+                    pins=list(element.pins.keys()),
+                    generator={"name": generator_name or element.model}
+                )
             with set_context(new_subckt.elements):
                 new_ele = Instance(name=element.name,
                                    model=element.model,
@@ -117,7 +134,9 @@ class PrimitiveLibrary():
             unique_name = f'{model}{block_arg}'
             element.add_abs_name(unique_name)
             self.add_primitve(model)
-            self.create_subckt(element, unique_name)
+            base_model = get_base_model(element.parent.parent, element.name)
+            generator_name = self._generator_name_from_base(base_model) or model
+            self.create_subckt(element, unique_name, generator_name=generator_name)
         else:
             assert False, f"Unmatched generator for this instance {element}, please fix netlist "
 

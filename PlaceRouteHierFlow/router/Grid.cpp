@@ -1,8 +1,98 @@
 #include "Grid.h"
 
 #include <cassert>
+#include <cctype>
+#include <cstdlib>
 
 #include "spdlog/spdlog.h"
+
+namespace {
+
+bool debug_grid_enabled() {
+  const char* env = std::getenv("ALIGN_SKY130_DEBUG_GRID");
+  if (env == nullptr || env[0] == '\0') {
+    return false;
+  }
+  return !(env[0] == '0' && env[1] == '\0');
+}
+
+int debug_grid_limit() {
+  const char* env = std::getenv("ALIGN_SKY130_DEBUG_GRID_LIMIT");
+  if (env == nullptr || env[0] == '\0') {
+    return 5;
+  }
+  char* end = nullptr;
+  long val = std::strtol(env, &end, 10);
+  if (end == env) {
+    return 5;
+  }
+  if (val < 0) {
+    return -1;
+  }
+  return static_cast<int>(val);
+}
+
+bool should_log_grid() {
+  if (!debug_grid_enabled()) {
+    return false;
+  }
+  static int seen = 0;
+  int limit = debug_grid_limit();
+  if (limit >= 0 && seen >= limit) {
+    return false;
+  }
+  ++seen;
+  return true;
+}
+
+std::string to_upper(std::string value) {
+  for (auto& ch : value) {
+    ch = static_cast<char>(std::toupper(static_cast<unsigned char>(ch)));
+  }
+  return value;
+}
+
+std::string debug_grid_layer() {
+  const char* env = std::getenv("ALIGN_SKY130_DEBUG_GRID_LAYER");
+  if (env == nullptr || env[0] == '\0') {
+    return "M4";
+  }
+  return std::string(env);
+}
+
+int find_metal_index(const PnRDB::Drc_info& drc_info, const std::string& layer_name) {
+  std::string target = to_upper(layer_name);
+  for (unsigned int i = 0; i < drc_info.Metal_info.size(); ++i) {
+    if (to_upper(drc_info.Metal_info.at(i).name) == target) {
+      return static_cast<int>(i);
+    }
+  }
+  return -1;
+}
+
+void log_grid_layer_mods(const PnRDB::Drc_info& drc_info, const std::vector<RouterDB::vertex>& vertices, int layer_idx, int pitch, int offset,
+                         int grid_scale, const RouterDB::point& ll, const RouterDB::point& ur) {
+  auto logger = spdlog::default_logger()->clone("router.Grid.DebugGrid");
+  const auto& layer = drc_info.Metal_info.at(layer_idx);
+  std::map<int, int> mods;
+  size_t count = 0;
+  for (const auto& v : vertices) {
+    if (v.metal != layer_idx) continue;
+    int coord = (layer.direct == 1) ? v.y : v.x;
+    int mod = coord - offset;
+    mod %= pitch;
+    if (mod < 0) mod += pitch;
+    mods[mod] += 1;
+    count += 1;
+  }
+  logger->info("Grid debug layer={} idx={} pitch={} offset={} grid_scale={} vertices={} LL=({}, {}) UR=({}, {})",
+               layer.name, layer_idx, pitch, offset, grid_scale, count, ll.x, ll.y, ur.x, ur.y);
+  for (const auto& kv : mods) {
+    logger->info("Grid debug layer={} mod={} count={}", layer.name, kv.first, kv.second);
+  }
+}
+
+}  // namespace
 
 Grid::Grid(const Grid& other)
     : total2graph(other.total2graph),
@@ -1256,6 +1346,20 @@ Grid::Grid(PnRDB::Drc_info& drc_info, RouterDB::point ll, RouterDB::point ur, in
       //    break;
       //  }
       //}
+    }
+  }
+  if (should_log_grid()) {
+    static bool warned_missing = false;
+    std::string layer_name = debug_grid_layer();
+    int layer_idx = find_metal_index(drc_info, layer_name);
+    if (layer_idx >= 0) {
+      int pitch = (drc_info.Metal_info.at(layer_idx).direct == 1) ? y_unit.at(layer_idx) : x_unit.at(layer_idx);
+      int offset = drc_info.Metal_info.at(layer_idx).offset;
+      log_grid_layer_mods(drc_info, vertices_total, layer_idx, pitch, offset, grid_scale, GridLL, GridUR);
+    } else if (!warned_missing) {
+      auto logger = spdlog::default_logger()->clone("router.Grid.DebugGrid");
+      logger->warn("Grid debug layer '{}' not found in DRC metal list", layer_name);
+      warned_missing = true;
     }
   }
   // CheckVerticesTotal();
@@ -3550,6 +3654,20 @@ Grid::Grid(GlobalGrid& GG, std::vector<std::pair<int, int>>& ST, PnRDB::Drc_info
       }
     }
   }
+  if (should_log_grid()) {
+    static bool warned_missing = false;
+    std::string layer_name = debug_grid_layer();
+    int layer_idx = find_metal_index(drc_info, layer_name);
+    if (layer_idx >= 0) {
+      int pitch = (drc_info.Metal_info.at(layer_idx).direct == 1) ? y_unit.at(layer_idx) : x_unit.at(layer_idx);
+      int offset = drc_info.Metal_info.at(layer_idx).offset;
+      log_grid_layer_mods(drc_info, vertices_total, layer_idx, pitch, offset, grid_scale, GridLL, GridUR);
+    } else if (!warned_missing) {
+      auto logger = spdlog::default_logger()->clone("router.Grid.DebugGrid");
+      logger->warn("Grid debug layer '{}' not found in DRC metal list", layer_name);
+      warned_missing = true;
+    }
+  }
 }
 
 Grid::Grid(GlobalGrid& GG, std::vector<std::pair<int, int>>& ST, PnRDB::Drc_info& drc_info, RouterDB::point ll, RouterDB::point ur, int Lmetal, int Hmetal,
@@ -4044,6 +4162,20 @@ Grid::Grid(GlobalGrid& GG, std::vector<std::pair<int, int>>& ST, PnRDB::Drc_info
         this->vertices_total[i].up = mit->second;
         this->vertices_total[mit->second].down = i;
       }
+    }
+  }
+  if (should_log_grid()) {
+    static bool warned_missing = false;
+    std::string layer_name = debug_grid_layer();
+    int layer_idx = find_metal_index(drc_info, layer_name);
+    if (layer_idx >= 0) {
+      int pitch = (drc_info.Metal_info.at(layer_idx).direct == 1) ? y_unit.at(layer_idx) : x_unit.at(layer_idx);
+      int offset = drc_info.Metal_info.at(layer_idx).offset;
+      log_grid_layer_mods(drc_info, vertices_total, layer_idx, pitch, offset, grid_scale, GridLL, GridUR);
+    } else if (!warned_missing) {
+      auto logger = spdlog::default_logger()->clone("router.Grid.DebugGrid");
+      logger->warn("Grid debug layer '{}' not found in DRC metal list", layer_name);
+      warned_missing = true;
     }
   }
 }

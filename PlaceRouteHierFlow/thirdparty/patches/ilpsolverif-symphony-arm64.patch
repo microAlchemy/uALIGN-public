@@ -1,0 +1,27 @@
+--- a/ILPSolverIf/symphony.cmake
++++ b/ILPSolverIf/symphony.cmake
+@@ -1,8 +1,15 @@
+ FetchContent_Declare(
+   symphony
+   URL https://www.coin-or.org/download/source/SYMPHONY/SYMPHONY-5.6.17.tgz
+   URL_HASH MD5=59fe0fa58c8bef019967766c86247b9d
+ )
++set(SYMPHONY_CONFIGURE_ENV "")
++if(APPLE AND CMAKE_SYSTEM_PROCESSOR MATCHES "arm64")
++  set(SYMPHONY_CFLAGS "-DNO_AVX_HARDWARE")
++  set(SYMPHONY_CONFIGURE_ENV
++    "CFLAGS=${SYMPHONY_CFLAGS}"
++    "CXXFLAGS=${SYMPHONY_CFLAGS}")
++endif()
+ include(ProcessorCount)
+ ProcessorCount(N)
+ if (NOT N)
+@@ -16,4 +23,5 @@
+   ExternalProject_Add(symphony
+       SOURCE_DIR ${symphony_SOURCE_DIR}
+-      CONFIGURE_COMMAND ${symphony_SOURCE_DIR}/configure --disable-openmp --disable-zlib --disable-bzlib --without-blas --without-lapack --enable-static --disable-shared --with-pic --prefix=${symphony_BINARY_DIR}
++      PATCH_COMMAND /bin/sh -c "/usr/bin/patch -p1 -N -i ${CMAKE_CURRENT_LIST_DIR}/symphony-arm64.patch || true"
++      CONFIGURE_COMMAND ${CMAKE_COMMAND} -E env ${SYMPHONY_CONFIGURE_ENV} ${symphony_SOURCE_DIR}/configure --disable-openmp --disable-zlib --disable-bzlib --without-blas --without-lapack --enable-static --disable-shared --with-pic --prefix=${symphony_BINARY_DIR}
+       BUILD_BYPRODUCTS ${symphony_BINARY_DIR}/lib/${CMAKE_STATIC_LIBRARY_PREFIX}Sym${CMAKE_STATIC_LIBRARY_SUFFIX}
+       ${symphony_BINARY_DIR}/lib/${CMAKE_STATIC_LIBRARY_PREFIX}OsiSym${CMAKE_STATIC_LIBRARY_SUFFIX}
+       BUILD_COMMAND make -j${N}

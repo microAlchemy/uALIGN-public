@@ -205,17 +205,20 @@ def generate_primitive(block_name, primitive, height=28, x_cells=1, y_cells=1, p
                 assert set(parameters) == gds2lef._ports, f'mismatch between ports in netlist({parameters}) and gds({gds2lef._ports})'
     elif 'ring' in primitive:
         uc, _ = generate_Ring(pdkdir, block_name, x_cells, y_cells)
-    elif 'MOS' == primitive.generator['name'].upper():
-        uc, _ = generate_MOS_primitive(pdkdir, block_name, primitive, height, value, x_cells, y_cells,
-                                       pattern, vt_type, stack, parameters, pinswitch, bodyswitch)
-    elif 'CAP' == primitive.generator['name'].upper():
-        uc, _ = generate_Cap(pdkdir, block_name, value[0], value[1])
-        uc.setBboxFromBoundary()
-    elif 'RES' == primitive.generator['name'].upper():
-        uc, _ = generate_Res(pdkdir, block_name, height, x_cells, y_cells, value[0], value[1])
-        uc.setBboxFromBoundary()
     else:
-        raise NotImplementedError(f"Unrecognized primitive {primitive}")
+        gen_const = [const for const in primitive.constraints if isinstance(const, constraint.Generator)]
+        gen_name = (gen_const[-1].name if gen_const else primitive.generator.get('name')).upper()
+        if 'MOS' == gen_name or 'NMOS' in gen_name or 'PMOS' in gen_name:
+            uc, _ = generate_MOS_primitive(pdkdir, block_name, primitive, height, value, x_cells, y_cells,
+                                           pattern, vt_type, stack, parameters, pinswitch, bodyswitch)
+        elif 'CAP' == gen_name or 'CAP' in gen_name:
+            uc, _ = generate_Cap(pdkdir, block_name, value[0], value[1])
+            uc.setBboxFromBoundary()
+        elif 'RES' == gen_name or 'RES' in gen_name:
+            uc, _ = generate_Res(pdkdir, block_name, height, x_cells, y_cells, value[0], value[1])
+            uc.setBboxFromBoundary()
+        else:
+            raise NotImplementedError(f"Unrecognized primitive {primitive}")
     if not blackbox:
         uc.computeBbox()
     

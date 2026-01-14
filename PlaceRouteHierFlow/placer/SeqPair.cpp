@@ -110,7 +110,12 @@ SeqPairEnumerator::SeqPairEnumerator(const vector<int>& pair, design& casenl, co
 
   size_t totSel{1};
   for (const auto& group : casenl.Same_Template_Constraints) {
-    auto pairint = new std::pair<int, int>(0, static_cast<int>(casenl.Blocks.at(*group.begin()).size()));
+    int min_size = INT_MAX;
+    for (const auto& i : group) {
+      min_size = std::min(min_size, static_cast<int>(casenl.Blocks.at(i).size()));
+    }
+    if (min_size <= 0) min_size = 1;
+    auto pairint = new std::pair<int, int>(0, min_size);
     totSel *= pairint->second;
     _selindex.push_back(pairint);
     for (const auto& i : group) _selmap[i] = pairint;
@@ -605,6 +610,13 @@ void SeqPair::PrintSeqPair() {
 void SeqPair::SameSelected(design& caseNL) {
   for (const auto& group : caseNL.Same_Template_Constraints) {
     int id = selected[*group.begin()];
+    int min_size = INT_MAX;
+    for (const auto& i : group) {
+      min_size = std::min(min_size, static_cast<int>(caseNL.Blocks.at(i).size()));
+    }
+    if (min_size <= 0) continue;
+    if (id < 0) id = 0;
+    if (id >= min_size) id = id % min_size;
     for (const auto& i : group) selected[i] = id;
   }
   /**
@@ -1768,6 +1780,15 @@ bool SeqPair::PerturbationNew(design& caseNL) {
       }
       bool ok{(!caseNL.Ordering_Constraints.empty() || !caseNL.Align_blocks.empty()) ? KeepOrdering(caseNL) : true};
       SameSelected(caseNL);
+      for (size_t i = 0; i < selected.size(); ++i) {
+        const int vcount = static_cast<int>(caseNL.Blocks.at(i).size());
+        if (vcount <= 0) {
+          selected[i] = 0;
+          continue;
+        }
+        if (selected[i] < 0) selected[i] = 0;
+        if (selected[i] >= vcount) selected[i] = selected[i] % vcount;
+      }
       retval = ((cpsp == *this) || !CheckAlign(caseNL) || !CheckSymm(caseNL) || !ok);
     }
     // logger->info("KeepOrdering end: {0}", ok);

@@ -2,7 +2,6 @@
 #include "spdlog/spdlog.h"
 #include <iostream>
 #include <algorithm>
-#include <malloc.h>
 #include <signal.h>
 #include "ILPSolverIf.h"
 
@@ -905,7 +904,7 @@ double ILP_solver::GenerateValidSolutionAnalytical(design& mydesign, PnRDB::Drc_
 
   // set_add_rowmode(lp, FALSE);
   {
-    double row[N_var + 1] = {0};
+    vector<double> row(N_var + 1, 0.0);
     Pdatatype hyper;
     #ifndef min_displacement
     // add HPWL in cost
@@ -1026,7 +1025,7 @@ double ILP_solver::GenerateValidSolutionAnalytical(design& mydesign, PnRDB::Drc_
       row[i * 4 + 1] += estimated_height / 2;
     }
 
-    set_obj_fn(lp, row);
+    set_obj_fn(lp, row.data());
     set_minim(lp);
     set_timeout(lp, 10);
     //print_lp(lp);
@@ -3610,7 +3609,7 @@ double ILP_solver::GenerateValidSolution_select(design& mydesign, SeqPair& curr_
 
   // set_add_rowmode(lp, FALSE);
   {
-    double row[N_var + 1] = {0};
+    vector<double> row(N_var + 1, 0.0);
     Pdatatype hyper;
 
     // add HPWL in cost
@@ -3771,7 +3770,7 @@ double ILP_solver::GenerateValidSolution_select(design& mydesign, SeqPair& curr_
     // add estimated area
     for (unsigned int i = 0; i < mydesign.Blocks.size(); i++) row[curr_sp.negPair[i] * 6 + 1] += estimated_height / 2;
 
-    set_obj_fn(lp, row);
+    set_obj_fn(lp, row.data());
     set_minim(lp);
     set_timeout(lp, 1);
     set_presolve(lp, PRESOLVE_ROWS | PRESOLVE_COLS | PRESOLVE_LINDEP, get_presolveloops(lp));

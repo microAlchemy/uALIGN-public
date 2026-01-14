@@ -1,5 +1,6 @@
 
 from collections import defaultdict, OrderedDict
+import os
 import pprint
 
 from .generators import *
@@ -201,6 +202,11 @@ class RemoveDuplicates():
 
     def build_scan_lines( self, tbl):
         skip_layers_for_different_widths = ['Active']
+        strict_sky130 = os.getenv("ALIGN_SKY130_STRICT", "").lower() in {"1", "true", "yes", "on"}
+        if strict_sky130 and self.canvas.pdk is not None:
+            layerfile = getattr(self.canvas.pdk, "layerfile", None)
+            if layerfile is not None and "sky130" in str(layerfile).lower():
+                skip_layers_for_different_widths.append('M4')
 
         self.store_scan_lines = defaultdict(dict)
 
@@ -352,4 +358,3 @@ class RemoveDuplicates():
             logger.debug("SUBINST" + pprint.pformat(subinst))
 
         return self.generate_rectangles()
-

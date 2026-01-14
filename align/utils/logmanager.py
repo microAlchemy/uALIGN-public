@@ -8,7 +8,11 @@ def configure_logging():
     logfile = pathlib.Path(cfg['handler_fileHandler']['args'].split("'")[1])
     logfile.parent.mkdir(exist_ok=True)
     rollover = logfile.is_file()
-    logging.config.fileConfig(cfg, disable_existing_loggers=False)
+    try:
+        logging.config.fileConfig(cfg, disable_existing_loggers=False)
+    except ModuleNotFoundError:
+        # Fall back to basic logging when optional formatters (e.g. colorlog) are unavailable.
+        logging.basicConfig(level=logging.INFO)
     if rollover:
         for x in logging.getLogger().handlers:
             if isinstance(x, logging.handlers.RotatingFileHandler):

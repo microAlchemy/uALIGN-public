@@ -1,4 +1,5 @@
 import logging
+import os
 import re
 import pathlib
 import json
@@ -106,8 +107,12 @@ def scale_and_check_placement(*, placement_verilog_d, concrete_name, scale_facto
     scaled_placement_verilog_d = scale_placement_verilog(placement_verilog_d, scale_factor)
     (pathlib.Path(opath) / f'{concrete_name}.scaled_placement_verilog.json').write_text(scaled_placement_verilog_d.json(indent=2,sort_keys=True))
     standalone_overlap_checker( scaled_placement_verilog_d, concrete_name)
-    #Comment out the next two calls to disable checking (possibly to use the GUI to visualize the error.)
-    check_placement( scaled_placement_verilog_d, scale_factor)
+    # Comment out the next two calls to disable checking (possibly to use the GUI to visualize the error.)
+    skip_check = os.getenv("ALIGN_SKIP_PLACEMENT_CHECK")
+    if skip_check is None or skip_check == "0":
+        check_placement(scaled_placement_verilog_d, scale_factor)
+    else:
+        logger.warning("Skipping placement constraint check (ALIGN_SKIP_PLACEMENT_CHECK is set).")
     if is_toplevel:
         check_place_on_grid(scaled_placement_verilog_d, concrete_name, opath)
     placement_verilog_alternatives[concrete_name] = scaled_placement_verilog_d

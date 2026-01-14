@@ -1,0 +1,83 @@
+--- a/Clp/src/ClpPackedMatrix.cpp
++++ b/Clp/src/ClpPackedMatrix.cpp
+@@ -6750,6 +6750,6 @@
+-#ifdef _MSC_VER
+-#include <intrin.h>
+-#else
+-#include <immintrin.h>
+-//#include <fmaintrin.h>
+-#endif
++#ifdef _MSC_VER
++#include <intrin.h>
++#elif defined(__x86_64__) || defined(__i386__)
++#include <immintrin.h>
++//#include <fmaintrin.h>
++#endif
+@@ -6779,3 +6779,8 @@
+-#ifndef COIN_AVX2
+-#define COIN_AVX2 4
+-#else
++#ifndef COIN_AVX2
++#if defined(__x86_64__) || defined(__i386__)
++#define COIN_AVX2 4
++#else
++#define COIN_AVX2 1
++#define NO_AVX_HARDWARE
++#endif
++#else
+@@ -6786,7 +6791,8 @@
+-#elif COIN_AVX2 == 8
+-#ifndef NO_AVX_HARDWARE
+-#define SKYLAKE
+-#endif
+-#else
+-  error
+-#endif
++#elif COIN_AVX2 == 8
++#ifndef NO_AVX_HARDWARE
++#define SKYLAKE
++#endif
++#elif COIN_AVX2 == 1
++#else
++  error
++#endif
+@@ -8766,2 +8771,2 @@
+-#ifndef COIN_AVX2
+-          double multiplier[] = { -1.0, 1.0};
++#if !defined(COIN_AVX2) || (!defined(__x86_64__) && !defined(__i386__))
++          double multiplier[] = { -1.0, 1.0};
+@@ -8797,2 +8802,2 @@
+-#ifndef COIN_AVX2
+-               for (i = 0; i < number; i++) {
++#if !defined(COIN_AVX2) || (!defined(__x86_64__) && !defined(__i386__))
++               for (i = 0; i < number; i++) {
+--- a/Clp/src/ClpSimplexDual.cpp
++++ b/Clp/src/ClpSimplexDual.cpp
+@@ -3556,4 +3556,4 @@
+-#else
+-#include <immintrin.h>
+-//#include <fmaintrin.h>
+-#endif
++#elif defined(__x86_64__) || defined(__i386__)
++#include <immintrin.h>
++//#include <fmaintrin.h>
++#endif
+@@ -3582,2 +3582,2 @@
+-#ifndef COIN_AVX2
+-    double multiplier[] = { -1.0, 1.0 };
++#if !defined(COIN_AVX2) || (!defined(__x86_64__) && !defined(__i386__))
++    double multiplier[] = { -1.0, 1.0 };
+@@ -3613,2 +3613,2 @@
+-#ifndef COIN_AVX2
+-      for (i = 0; i < number; i++) {
++#if !defined(COIN_AVX2) || (!defined(__x86_64__) && !defined(__i386__))
++      for (i = 0; i < number; i++) {
+--- a/Clp/src/CoinAbcHelperFunctions.hpp
++++ b/Clp/src/CoinAbcHelperFunctions.hpp
+@@ -29,1 +29,5 @@
+-#define CILK_FOR_GRAINSIZE 128
++#define CILK_FOR_GRAINSIZE 128
++#if !defined(__x86_64__) && !defined(__i386__)
++#undef AVX2
++#define AVX2 0
++#endif
