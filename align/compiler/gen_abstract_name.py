@@ -147,6 +147,10 @@ class PrimitiveLibrary():
                 raise NotImplementedError(
                     f"{msg} Inductors are unsupported; use a black_box or remove the inductor."
                 )
+            if base_model and base_model.upper().startswith("DIODE"):
+                raise NotImplementedError(
+                    f"{msg} Diodes are unsupported; add a black_box or replace the diode."
+                )
             raise NotImplementedError(msg)
 
     def add_primitve(self, primitive_name):

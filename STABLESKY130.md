@@ -84,7 +84,7 @@
 ## Known Limitations (To Track)
 - Bulk MOS uses exact `W/L`, but cell height/grid assumptions remain fin-based.
 - Lack of full SKY130 DRC/LVS completeness.
-- Limited device coverage beyond MOS/CAP/RES (e.g., diodes, specialty caps/res variants).
+- Limited device coverage beyond MOS/CAP/RES; diodes remain unsupported (explicit error), and specialty cap/res variants are only partially covered.
 - Inductors are unsupported (no generator); netlists using `.model inductor` will error out.
 - Unsupported inductors now fail early with a clear error during primitive generation.
 - SA/enum placement is heuristic; symmetry and constraint enforcement are not guaranteed for complex designs.
@@ -107,11 +107,13 @@
   - Mapped primitive generator names to `MOS/RES/CAP` using base-model inference.
   - Added generator mappings for `nmos_*`/`pmos_*` (RVT/LVT/HVT) and `nfet`/`pfet` model aliases.
   - Infer base models for unknown devices by name (NFET/PFET/CAP/RES/IND) to improve coverage.
+  - Added DIODE base model inference and explicit unsupported diode errors during primitive generation.
 - [x] Phase 2: Parameter robustness
   - Allow non-fin-quantized widths by rounding to nearest fin pitch with warnings.
   - Allow odd `NF` by rounding to the next even value with warnings.
   - Inject NMOS/PMOS model hint for SKY130 devices.
   - Use exact schematic `W/L` to size bulk MOS active/poly geometry.
+  - Allow SKY130 CAP/RES variants to size from `L/W` or `AREA` parameters (fallback to `VALUE`/`R`).
 - [x] Phase 3: Validation & checkpoints
   - Added sandbox smoke test script; executed successfully in `.venv_sky130`.
   - `five_transistor_ota` completes end-to-end (placement + routing + GDS).
@@ -192,10 +194,16 @@
   - Runs `buffer`, `inverter`, `five_transistor_ota`, `current_mirror_ota`, and `telescopic_ota` with strict no-relax flags; asserts empty `.errors` files.
 - `sandbox_tests/sky130_unsupported_inductor.py`
   - Verifies unsupported inductors fail early with a clear error message.
+- `sandbox_tests/sky130_diode_unsupported.py`
+  - Verifies unsupported diodes fail early with a clear error message.
 - `sandbox_tests/sky130_bulk_mos_accuracy.py`
   - Validates bulk MOS uses exact `W/L` for active/poly sizing.
 - `sandbox_tests/sky130_unknown_model_base.py`
   - Ensures unknown SKY130 MOS models infer base `NMOS` for constraints and generator mapping.
+- `sandbox_tests/sky130_res_variant_smoke.py`
+  - Validates `RES` sizing from `L/W` parameters in SKY130 `gen_param`.
+- `sandbox_tests/sky130_cap_variant_smoke.py`
+  - Validates `CAP` sizing from `L/W` and `AREA` parameters in SKY130 `gen_param`.
 
 ## Integration Attempts
 - `five_transistor_ota` run attempted via:

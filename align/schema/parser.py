@@ -84,14 +84,16 @@ class SpiceParser:
             base = "CAP"
         elif "RES" in name:
             base = "RES"
+        elif "DIODE" in name:
+            base = "DIODE"
         elif "IND" in name:
             base = "IND"
-        if base is None and prefix in ("C", "R", "L"):
-            base = {"C": "CAP", "R": "RES", "L": "IND"}[prefix]
+        if base is None and prefix in ("C", "R", "L", "D"):
+            base = {"C": "CAP", "R": "RES", "L": "IND", "D": "DIODE"}[prefix]
         if pin_count is not None:
             if base in ("NMOS", "PMOS") and pin_count != 4:
                 return None
-            if base in ("CAP", "RES", "IND") and pin_count != 2:
+            if base in ("CAP", "RES", "IND", "DIODE") and pin_count != 2:
                 return None
         return base
 

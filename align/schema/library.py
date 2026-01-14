@@ -83,6 +83,14 @@ class Library(List[Union[Model, SubCircuit]]):
         )
         models.append(
             Model(
+                name='DIODE',
+                pins=['A', 'B'],
+                parameters={},
+                prefix='D'
+            )
+        )
+        models.append(
+            Model(
                 name='IND',
                 pins=['PLUS', 'MINUS'],
                 parameters={
