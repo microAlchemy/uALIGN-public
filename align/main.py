@@ -146,13 +146,10 @@ def schematic2layout(netlist_dir, pdk_dir, netlist_file=None, subckt=None, worki
         raise FileNotFoundError(2, 'No such pdk directory', pdk_dir)
 
     if "sky130" in str(pdk_dir).lower():
-        if os.environ.get("ALIGN_PLACER_SKIP_SA") is None:
-            os.environ["ALIGN_PLACER_SKIP_SA"] = "1"
-        if os.environ.get("ALIGN_PLACER_SKIP_ENUM") is None:
-            os.environ["ALIGN_PLACER_SKIP_ENUM"] = "1"
-        if os.environ.get("ALIGN_SKIP_PLACEMENT_CHECK") is None:
-            os.environ["ALIGN_SKIP_PLACEMENT_CHECK"] = "1"
-        logger.warning("SKY130 detected: enabling ALIGN_PLACER_SKIP_SA, ALIGN_PLACER_SKIP_ENUM, and ALIGN_SKIP_PLACEMENT_CHECK for stability.")
+        logger.info(
+            "SKY130 detected: SA/enum placement enabled by default; set ALIGN_PLACER_SKIP_SA "
+            "and ALIGN_PLACER_SKIP_ENUM to disable if needed."
+        )
 
     if regression:
         # Copy regression results in one dir

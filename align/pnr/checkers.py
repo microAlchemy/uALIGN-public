@@ -49,6 +49,9 @@ def gen_viewer_json(hN, *, pdkdir, draw_grid=False, global_route_json=None, json
     pdk_name = str(pdkdir).lower()
     pdk_is_sky130 = "sky130" in pdk_name
     strict_sky130 = os.getenv("ALIGN_SKY130_STRICT", "").lower() in {"1", "true", "yes", "on"}
+    strict_m4_block_grid = os.getenv("ALIGN_SKY130_STRICT_M4_BLOCK_GRID", "").lower() in {"1", "true", "yes", "on"}
+    debug_m4_checks = os.getenv("ALIGN_SKY130_DEBUG_M4_CHECKS", "").lower() in {"1", "true", "yes", "on"}
+    debug_m4_net = os.getenv("ALIGN_SKY130_DEBUG_M4_NET", "")
     relax_m4_blockpins = pdk_is_sky130 and not strict_sky130
     relax_m4_paths = False
     if pdk_is_sky130:
@@ -59,6 +62,10 @@ def gen_viewer_json(hN, *, pdkdir, draw_grid=False, global_route_json=None, json
             else:
                 relax_m4_paths = env_relax_paths.lower() in {"1", "true", "yes", "on"}
         else:
+            relax_m4_paths = True
+    if pdk_is_sky130 and not toplevel:
+        if not (strict_sky130 and strict_m4_block_grid):
+            relax_m4_blockpins = True
             relax_m4_paths = True
     if "sky130" in pdk_name:
         for layer in ("CapMIMContact", "CapMIMLayer"):
@@ -136,6 +143,25 @@ def gen_viewer_json(hN, *, pdkdir, draw_grid=False, global_route_json=None, json
             else:
                 center = None
             if center is not None:
+                if debug_m4_checks and layer == "M4" and tag in {"path_metal", "path_via", "intervia"}:
+                    if not debug_m4_net or debug_m4_net == netName:
+                        box_center = (b.LL.y + b.UR.y) // 2
+                        pitch_pnr = cnv.pdk["M4"]["Pitch"] * 2 // scale_factor
+                        offset_pnr = cnv.pdk["M4"].get("Offset", 0) * 2 // scale_factor
+                        center_mod = (center - offset_pnr) % pitch_pnr if pitch_pnr else None
+                        box_mod = (box_center - offset_pnr) % pitch_pnr if pitch_pnr else None
+                        logger.info(
+                            "M4 debug net=%s tag=%s rect=%s center_override=%s box_center=%s pitch_pnr=%s offset_pnr=%s center_mod=%s box_mod=%s",
+                            netName,
+                            tag,
+                            r,
+                            center,
+                            box_center,
+                            pitch_pnr,
+                            offset_pnr,
+                            center_mod,
+                            box_mod,
+                        )
                 if relax_m4_blockpins and layer == "M4" and tag == "blockPin":
                     return
                 lyr = layer.lower() if layer.lower() in cnv.generators else layer.upper()

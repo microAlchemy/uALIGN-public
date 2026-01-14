@@ -8,6 +8,7 @@ from collections import defaultdict
 from .. import PnR
 from .render_placement import gen_placement_verilog, scale_placement_verilog, gen_boxes_and_hovertext, standalone_overlap_checker, scalar_rational_scaling, round_to_angstroms
 from .checker import check_placement, check_place_on_grid
+from ..schema.constraint import PlaceOnGrid, OffsetsScalings
 from ..gui.mockup import run_gui
 from .hpwl import calculate_HPWL_from_placement_verilog_d, gen_netlist
 from .grid_constraints import gen_constraints
@@ -253,6 +254,63 @@ def process_placements(*, DB, verilog_d, lambda_coeff, scale_factor, opath):
 
 
 
+def _env_flag(name):
+    return os.getenv(name, "").lower() in {"1", "true", "yes", "on"}
+
+
+def _m4_grid_from_drc(drc_info, scale_factor):
+    if drc_info is None or "M4" not in drc_info.Metalmap:
+        return None, None
+    m4_idx = drc_info.Metalmap["M4"]
+    m4_info = drc_info.Metal_info[m4_idx]
+    pitch_pnr = m4_info.grid_unit_y if m4_info.grid_unit_y > 0 else m4_info.grid_unit_x
+    if pitch_pnr <= 0:
+        return None, None
+    pitch_pdk = pitch_pnr * scale_factor // 2
+    offset_pdk = m4_info.offset * scale_factor // 2
+    return pitch_pdk, offset_pdk
+
+
+def _resolve_m4_grid(drc_info, scale_factor):
+    pitch_pdk, offset_pdk = _m4_grid_from_drc(drc_info, scale_factor)
+    env_pitch = os.getenv("ALIGN_SKY130_STRICT_M4_PITCH")
+    env_offset = os.getenv("ALIGN_SKY130_STRICT_M4_OFFSET")
+    if env_pitch:
+        try:
+            pitch_pdk = int(env_pitch)
+        except ValueError:
+            pass
+    if env_offset:
+        try:
+            offset_pdk = int(env_offset)
+        except ValueError:
+            pass
+    return pitch_pdk, offset_pdk
+
+
+def _constraint_field(constraint, name, default=None):
+    if hasattr(constraint, name):
+        return getattr(constraint, name)
+    if isinstance(constraint, dict):
+        return constraint.get(name, default)
+    return default
+
+
+def _has_place_on_grid(constraints, direction, pitch, offset):
+    for constraint in constraints:
+        if _constraint_field(constraint, "constraint") != "PlaceOnGrid":
+            continue
+        if _constraint_field(constraint, "direction") != direction:
+            continue
+        if _constraint_field(constraint, "pitch") != pitch:
+            continue
+        for term in _constraint_field(constraint, "ored_terms", []) or []:
+            offsets = _constraint_field(term, "offsets", []) or []
+            if offset in offsets:
+                return True
+    return False
+
+
 def update_grid_constraints(grid_constraints, DB, idx, verilog_d, primitives, scale_factor):
     assert verilog_d is not None
     assert primitives is not None
@@ -264,6 +322,13 @@ def update_grid_constraints(grid_constraints, DB, idx, verilog_d, primitives, sc
     s_verilog_d = subset_verilog_d( verilog_d, DB.hierTree[idx].name)
 
     frontier = {}
+
+    strict_sky130 = _env_flag("ALIGN_SKY130_STRICT")
+    strict_m4_block_grid = _env_flag("ALIGN_SKY130_STRICT_M4_BLOCK_GRID")
+    m4_pitch = None
+    m4_offset = None
+    if strict_sky130 and strict_m4_block_grid:
+        m4_pitch, m4_offset = _resolve_m4_grid(DB.getDrc_info(), scale_factor)
 
     for sel in range(DB.hierTree[idx].numPlacement):
         # create new verilog for each placement
@@ -288,6 +353,16 @@ def update_grid_constraints(grid_constraints, DB, idx, verilog_d, primitives, sc
         top_name = f'{hN.name}_{sel}'
         gen_constraints(scaled_placement_verilog_d, top_name)
         top_module = next(iter([module for module in scaled_placement_verilog_d['modules'] if module['concrete_name'] == top_name]))
+
+        if m4_pitch is not None and m4_offset is not None and m4_pitch > 0:
+            if not _has_place_on_grid(top_module['constraints'], "H", m4_pitch, m4_offset):
+                top_module['constraints'].append(
+                    PlaceOnGrid(
+                        direction="H",
+                        pitch=m4_pitch,
+                        ored_terms=[OffsetsScalings(offsets=[m4_offset], scalings=[1, -1])]
+                    )
+                )
 
         frontier[top_name] = [constraint.dict() for constraint in top_module['constraints'] if constraint.constraint == 'PlaceOnGrid']
 

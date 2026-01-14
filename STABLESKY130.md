@@ -7,10 +7,12 @@
 - Capture known limitations and the remaining gaps for “production-grade” SKY130 DRC/LVS.
 
 ## SKY130 Stability Workarounds
-- SKY130 placement instability: the flow auto-enables `ALIGN_PLACER_SKIP_SA=1`, `ALIGN_PLACER_SKIP_ENUM=1`, and `ALIGN_SKIP_PLACEMENT_CHECK=1` when `pdk_dir` includes `sky130` (avoids SA/enum placer crashes; skips placement constraints).
-- You can override by explicitly setting/unsetting these environment variables before running.
+- SA/enum placement is enabled by default for SKY130. Set `ALIGN_PLACER_SKIP_SA=1` and/or `ALIGN_PLACER_SKIP_ENUM=1` only if you need to bypass the SA/enum placer.
+- Set `ALIGN_SKIP_PLACEMENT_CHECK=1` to bypass placement constraint checks if needed.
 - Strict SKY130 mode: set `ALIGN_SKY130_STRICT=1` to enforce strict grid checks and cap snapping. Default strict M4 grid uses `M4.Pitch`/`M4.Offset`; override with `ALIGN_SKY130_STRICT_M4_PITCH` and `ALIGN_SKY130_STRICT_M4_OFFSET`.
 - Strict SKY130 path relax: `ALIGN_SKY130_STRICT_RELAX_M4_PATHS` (default enabled for SKY130) allows M4 path_metal/path_via checks to accept the M2 grid (router via enclosures are aligned to M2 for some SKY130 blocks). Set to `0` to enforce M4-only path grid checks.
+- Strict SKY130 block grid: set `ALIGN_SKY130_STRICT_M4_BLOCK_GRID=1` to align sub-block placements to the M4 pitch/offset so strict M4 checks can be enforced hierarchically.
+- Strict SKY130 M4 checks are enforced at top-level only by default; enable `ALIGN_SKY130_STRICT_M4_BLOCK_GRID=1` to avoid non-top-level relaxations.
 
 ## Current Status (Latest)
 - Clean rebuild on macOS/arm64 succeeds with `.venv_sky130`.
@@ -18,7 +20,10 @@
 - `schematic2layout.py` completes for `five_transistor_ota`, `inverter`, and `buffer`.
 - `current_mirror_ota` and `telescopic_ota` complete end-to-end when the SKY130 stability workarounds are enabled (router warnings removed).
 - `umich_test_case` completes end-to-end with SKY130 workarounds enabled; `.errors` files are empty and CapMIM warnings are suppressed in PnR checks.
+- Placement constraint checks pass for `five_transistor_ota`, `current_mirror_ota`, `telescopic_ota`, and `umich_test_case` with `ALIGN_SKIP_PLACEMENT_CHECK=0`.
+- All examples complete with SA/enum placement enabled (`ALIGN_PLACER_SKIP_SA=0`, `ALIGN_PLACER_SKIP_ENUM=0`).
 - `current_mirror_ota`, `five_transistor_ota`, and `umich_test_case` complete with empty `.errors` files when `ALIGN_SKY130_STRICT=1` is set (strict uses M4 pitch/offset defaults and relaxes M4 path_metal/path_via to M2 grid by default).
+- `umich_test_case` completes with `ALIGN_SKY130_STRICT=1`, `ALIGN_SKY130_STRICT_RELAX_M4_PATHS=0`, and `ALIGN_SKY130_STRICT_M4_BLOCK_GRID=1`; `.errors` files are empty and top-level block placements align to the M4 grid.
 
 ## Baseline Status (Before Changes)
 - Running `schematic2layout.py` from the repo without installation fails due to missing dependencies:
@@ -77,8 +82,9 @@
 - Bulk CMOS accuracy vs fin-based generator assumptions.
 - Lack of full SKY130 DRC/LVS completeness.
 - Limited device coverage (caps/res variants, LVT/HVT naming).
-- SKY130 runs skip SA, enum placement, and placement constraint checking; symmetry and constraint enforcement are not guaranteed.
+- SA/enum placement is heuristic; symmetry and constraint enforcement are not guaranteed for complex designs.
 - SKY130 checkers relax M4 grid enforcement for path routing and block pins to tolerate cap geometry.
+- Strict SKY130 M4 grid checks are top-level only by default; use `ALIGN_SKY130_STRICT_M4_BLOCK_GRID=1` to enforce hierarchical M4 alignment.
 - CapMIMContact/CapMIMLayer are excluded from checker connectivity, so they are not DRC/LVS-validated (but remain in output).
 - Strict mode defaults to the PDK `M4.Pitch`/`M4.Offset`.
 - Strict SKY130 relaxes M4 path_metal/path_via to the M2 grid by default; disable with `ALIGN_SKY130_STRICT_RELAX_M4_PATHS=0` for full M4 enforcement.
@@ -105,11 +111,9 @@
   - Adjusted primitive generation to honor `Generator` constraints (fixes SCM_NMOS/SCM_PMOS).
   - Clean rebuild path verified after wiping `_skbuild`.
 - [x] Stability workaround for SKY130 placer segfault
-   - Added `ALIGN_PLACER_SKIP_SA` gate in C++ placer to bypass SA loop when set.
-   - Added `ALIGN_PLACER_SKIP_ENUM` gate in C++ placer to bypass enum placer (avoids UMICH crash).
-   - Added `ALIGN_SKIP_PLACEMENT_CHECK` gate to skip constraint solver in placement verification.
-   - Auto-enable all three for SKY130 in `align/main.py`.
-   - `current_mirror_ota`, `telescopic_ota`, and `umich_test_case` now complete with these workarounds.
+  - Added `ALIGN_PLACER_SKIP_SA` gate in C++ placer to bypass SA loop when set.
+  - Added `ALIGN_PLACER_SKIP_ENUM` gate in C++ placer to bypass enum placer (avoids UMICH crash).
+  - SA/enum are enabled by default; use env skips only if needed.
 - [x] Router warning cleanup
   - Removed spurious “feasible path might not be found” warnings by fixing GlobalGraph dijkstra termination.
 - [x] Router grid debug instrumentation
@@ -140,12 +144,24 @@
   - Strict cap M4 snapping now uses `M4.Pitch`/`M4.Offset` by default (previously used M2 pitch).
 - [x] Strict SKY130 path relax (M4)
   - M4 path_metal/path_via checks allow M2 grid alignment for SKY130 in strict mode (configurable via `ALIGN_SKY130_STRICT_RELAX_M4_PATHS`).
+- [x] Strict SKY130 M4 top-level-only enforcement
+  - Non-top-level blocks always relax M4 path/blockPin grid checks to avoid local grid offset false positives.
+  - Added `ALIGN_SKY130_DEBUG_M4_CHECKS` and `ALIGN_SKY130_DEBUG_M4_NET` to log M4 path/via centerline diagnostics.
+- [x] Strict SKY130 M4 hierarchical block grid
+  - Added `ALIGN_SKY130_STRICT_M4_BLOCK_GRID` to align block placements to the M4 pitch/offset in strict mode.
+  - Strict non-top-level M4 path/blockPin checks are now enforced when block grid alignment is enabled.
+- [x] Placement checks enabled by default (SKY130)
+  - Removed auto-skip for `ALIGN_SKIP_PLACEMENT_CHECK` in `align/main.py`.
+  - Validated placement checks for `five_transistor_ota`, `current_mirror_ota`, `telescopic_ota`, and `umich_test_case`.
+- [x] SA/enum placement enabled by default (SKY130)
+  - Removed auto-skip for `ALIGN_PLACER_SKIP_SA` and `ALIGN_PLACER_SKIP_ENUM` in `align/main.py`.
+  - Validated SA/enum placement for all SKY130 examples (`buffer`, `inverter`, `five_transistor_ota`, `current_mirror_ota`, `telescopic_ota`, `umich_test_case`).
 - [x] Strict SKY130 different-width relaxation (M4)
   - M4 different-width checks are skipped in strict SKY130 to tolerate cap plate widths on shared centerlines.
 
 ## Current Blockers
 - No blocking issues for `five_transistor_ota` in `.venv_sky130`.
-- No DRC/LVS errors in `umich_test_case` output; remaining risk is reliance on SKY130 M4 grid relaxations/overrides in PnR checks.
+- No DRC/LVS errors in `umich_test_case` output; remaining risk is reliance on top-level-only M4 grid enforcement unless `ALIGN_SKY130_STRICT_M4_BLOCK_GRID=1` is used.
 
 ## Sandbox Tests Added
 - `sandbox_tests/sky130_smoke.py`
@@ -157,6 +173,8 @@
 - `sandbox_tests/sky130_m4_grid_report.py`
   - Reports routing centerline alignment vs PDK pitch/offset for a given viewer JSON output.
   - Use `--fail-on-offgrid` for strict gating in future phases.
+- `sandbox_tests/sky130_umich_strict_no_relax.py`
+  - Runs UMICH with strict + no-relax + M4 block grid flags, forces SA/enum placement, asserts empty `.errors`, and checks top-level block placements align to the M4 grid.
 
 ## Integration Attempts
 - `five_transistor_ota` run attempted via:
