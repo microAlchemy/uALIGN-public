@@ -224,3 +224,4 @@
 - `current_mirror_ota` and `telescopic_ota` complete end-to-end with SKY130 workarounds enabled.
 - `umich_test_case` completes end-to-end with SKY130 workarounds enabled; `.errors` files are empty.
 - `lw_cell` (L/W cap) completes end-to-end using `sky130_fd_pr__cap_mim_m3_1 W=7u L=19u MF=1`; outputs in `work_sky130_cap_lw`.
+- `um_cell` (unitless L/W cap) completes end-to-end using `ALIGN_SKY130_ASSUME_UM=1` with `W=7 L=19`; outputs in `work_sky130_cap_um`.
