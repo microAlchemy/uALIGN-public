@@ -103,6 +103,7 @@
 - [x] Phase 1: Generator/model mapping
   - Added SKY130 `generator_class()` mapping for nfet/pfet/cap/res model names.
   - Mapped primitive generator names to `MOS/RES/CAP` using base-model inference.
+  - Added generator mappings for `nmos_*`/`pmos_*` (RVT/LVT/HVT) and `nfet`/`pfet` model aliases.
 - [x] Phase 2: Parameter robustness
   - Allow non-fin-quantized widths by rounding to nearest fin pitch with warnings.
   - Allow odd `NF` by rounding to the next even value with warnings.
