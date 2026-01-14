@@ -86,9 +86,10 @@
 - Lack of full SKY130 DRC/LVS completeness.
 - Limited device coverage beyond MOS/CAP/RES; diodes remain unsupported (explicit error), and specialty cap/res variants are only partially covered.
 - SKY130 SPICE models generally expect `W/L` in microns; ALIGN assumes SI units in netlists (meters). `AREA` inputs are interpreted as m^2 (consistent with SI netlists). Micron-based netlists must use unit suffixes (e.g., `7u`) to avoid 1e6x scaling errors.
+- Optional unit coercion: set `ALIGN_SKY130_ASSUME_UM=1` to interpret large unitless `W/L` values as microns (and `AREA` as um^2) during primitive generation.
 - Resistor variants with body pins (3‑terminal `res_generic_*`) are not supported; only 2‑terminal usage is accepted today.
 - CAP/RES multiplicity parameters (`M`, `MF`, `MULT`) are parsed but not used to scale geometry yet.
-- SKY130 `generator_class()` matches any subckt name containing `cap`/`res`; top-level circuits with those substrings are misclassified as primitives. Avoid those names (or tighten matching).
+- SKY130 `generator_class()` now only maps known aliases and `sky130_fd_pr__*` device names; top-level circuit names containing `cap`/`res` no longer misclassify as primitives.
 - Inductors are unsupported (no generator); netlists using `.model inductor` will error out.
 - Unsupported inductors now fail early with a clear error during primitive generation.
 - SA/enum placement is heuristic; symmetry and constraint enforcement are not guaranteed for complex designs.
@@ -210,6 +211,10 @@
   - Validates `RES` sizing from `L/W` parameters in SKY130 `gen_param`.
 - `sandbox_tests/sky130_cap_variant_smoke.py`
   - Validates `CAP` sizing from `L/W` and `AREA` parameters in SKY130 `gen_param`.
+- `sandbox_tests/sky130_generator_filter.py`
+  - Ensures SKY130 generator matching does not misclassify top-level subckt names.
+- `sandbox_tests/sky130_unit_coercion.py`
+  - Validates micron unit coercion for unitless `W/L` when `ALIGN_SKY130_ASSUME_UM=1`.
 
 ## Integration Attempts
 - `five_transistor_ota` run attempted via:
