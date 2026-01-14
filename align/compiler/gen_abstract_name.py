@@ -138,7 +138,16 @@ class PrimitiveLibrary():
             generator_name = self._generator_name_from_base(base_model) or model
             self.create_subckt(element, unique_name, generator_name=generator_name)
         else:
-            assert False, f"Unmatched generator for this instance {element}, please fix netlist "
+            base_model = get_base_model(element.parent.parent, element.name)
+            msg = (
+                f"Unmatched generator for instance {element.name} (model={element.model}, base={base_model}) "
+                f"in {element.parent.parent.name}; no generator found in PDK {self.pdk_dir}."
+            )
+            if base_model and base_model.upper().startswith("IND"):
+                raise NotImplementedError(
+                    f"{msg} Inductors are unsupported; use a black_box or remove the inductor."
+                )
+            raise NotImplementedError(msg)
 
     def add_primitve(self, primitive_name):
         if not self.plib.find(primitive_name):

@@ -86,6 +86,7 @@
 - Lack of full SKY130 DRC/LVS completeness.
 - Limited device coverage (caps/res variants, LVT/HVT naming).
 - Inductors are unsupported (no generator); netlists using `.model inductor` will error out.
+- Unsupported inductors now fail early with a clear error during primitive generation.
 - SA/enum placement is heuristic; symmetry and constraint enforcement are not guaranteed for complex designs.
 - SKY130 checkers relax M4 grid enforcement for path routing and block pins to tolerate cap geometry.
 - Strict SKY130 M4 grid checks are top-level only by default; use `ALIGN_SKY130_STRICT_M4_BLOCK_GRID=1` to enforce hierarchical M4 alignment.
