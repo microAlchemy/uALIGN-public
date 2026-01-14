@@ -88,7 +88,7 @@
 - SKY130 SPICE models generally expect `W/L` in microns; ALIGN assumes SI units in netlists (meters). `AREA` inputs are interpreted as m^2 (consistent with SI netlists). Micron-based netlists must use unit suffixes (e.g., `7u`) to avoid 1e6x scaling errors.
 - Optional unit coercion: set `ALIGN_SKY130_ASSUME_UM=1` to interpret large unitless `W/L` values as microns (and `AREA` as um^2) during primitive generation.
 - Resistor variants with body pins (3‑terminal `res_generic_*`) are not supported; they now fail fast with a clear error and only 2‑terminal usage is accepted today.
-- CAP/RES multiplicity parameters (`M`, `MF`, `MULT`) are parsed but not used to scale geometry yet.
+- CAP/RES multiplicity parameters (`M`, `MF`, `MULT`) scale geometry/effective size in `gen_param` (caps scale L/W by sqrt(mult); resistors scale R by 1/mult).
 - SKY130 `generator_class()` now only maps known aliases and `sky130_fd_pr__*` device names; top-level circuit names containing `cap`/`res` no longer misclassify as primitives.
 - Inductors are unsupported (no generator); netlists using `.model inductor` will error out.
 - Unsupported inductors now fail early with a clear error during primitive generation.
@@ -217,6 +217,10 @@
   - Validates micron unit coercion for unitless `W/L` when `ALIGN_SKY130_ASSUME_UM=1`.
 - `sandbox_tests/sky130_res_3pin_unsupported.py`
   - Verifies 3‑terminal SKY130 resistors fail fast with a clear error.
+- `sandbox_tests/sky130_cap_mult_smoke.py`
+  - Validates CAP multiplicity scaling in SKY130 `gen_param`.
+- `sandbox_tests/sky130_res_mult_smoke.py`
+  - Validates RES multiplicity scaling in SKY130 `gen_param`.
 
 ## Integration Attempts
 - `five_transistor_ota` run attempted via:
