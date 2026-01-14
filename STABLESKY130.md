@@ -88,6 +88,7 @@
 - SKY130 SPICE models generally expect `W/L` in microns; ALIGN assumes SI units in netlists (meters). `AREA` inputs are interpreted as m^2 (consistent with SI netlists). Micron-based netlists must use unit suffixes (e.g., `7u`) to avoid 1e6x scaling errors.
 - Optional unit coercion: set `ALIGN_SKY130_ASSUME_UM=1` to interpret large unitless `W/L` values as microns (and `AREA` as um^2) during primitive generation.
 - Resistor variants with body pins (3‑terminal `res_generic_*`) are not supported; they now fail fast with a clear error and only 2‑terminal usage is accepted today.
+- SKY130 resistor generator is disabled by default due to DRC shorts/opens; set `ALIGN_SKY130_ENABLE_RES=1` to force (not DRC-clean).
 - CAP/RES multiplicity parameters (`M`, `MF`, `MULT`) scale geometry/effective size in `gen_param` (caps scale L/W by sqrt(mult); resistors scale R by 1/mult).
 - SKY130 `generator_class()` now only maps known aliases and `sky130_fd_pr__*` device names; top-level circuit names containing `cap`/`res` no longer misclassify as primitives.
 - Inductors are unsupported (no generator); netlists using `.model inductor` will error out.
@@ -217,6 +218,8 @@
   - Validates micron unit coercion for unitless `W/L` when `ALIGN_SKY130_ASSUME_UM=1`.
 - `sandbox_tests/sky130_res_3pin_unsupported.py`
   - Verifies 3‑terminal SKY130 resistors fail fast with a clear error.
+- `sandbox_tests/sky130_res_disabled.py`
+  - Verifies SKY130 resistor generation is disabled by default.
 - `sandbox_tests/sky130_cap_mult_smoke.py`
   - Validates CAP multiplicity scaling in SKY130 `gen_param`.
 - `sandbox_tests/sky130_res_mult_smoke.py`
@@ -231,3 +234,4 @@
 - `umich_test_case` completes end-to-end with SKY130 workarounds enabled; `.errors` files are empty.
 - `lw_cell` (L/W cap) completes end-to-end using `sky130_fd_pr__cap_mim_m3_1 W=7u L=19u MF=1`; outputs in `work_sky130_cap_lw`.
 - `um_cell` (unitless L/W cap) completes end-to-end using `ALIGN_SKY130_ASSUME_UM=1` with `W=7 L=19`; outputs in `work_sky130_cap_um`.
+- `mult_prims` (cap+res with multiplicity) runs end-to-end only when `ALIGN_SKY130_ENABLE_RES=1`; resistor geometry triggers DRC shorts/opens (see `work_sky130_mult_flow`).

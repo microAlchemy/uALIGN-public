@@ -6,6 +6,7 @@ Created on Wed Feb 2 13:12:15 2022
 """
 from align.schema.types import set_context
 import logging
+import os
 import pathlib
 
 
@@ -135,6 +136,15 @@ class PrimitiveLibrary():
             element.add_abs_name(unique_name)
             self.add_primitve(model)
             base_model = get_base_model(element.parent.parent, element.name)
+            if (
+                base_model
+                and base_model.upper().startswith("RES")
+                and self.pdk_dir.name.upper() == "SKY130_PDK"
+                and os.getenv("ALIGN_SKY130_ENABLE_RES", "").lower() not in {"1", "true", "yes", "on"}
+            ):
+                raise NotImplementedError(
+                    "SKY130 resistor generator is not DRC-clean yet; set ALIGN_SKY130_ENABLE_RES=1 to force."
+                )
             generator_name = self._generator_name_from_base(base_model) or model
             self.create_subckt(element, unique_name, generator_name=generator_name)
         else:
