@@ -1,0 +1,20 @@
+kind: primitive
+pdk: Bulk65nm_Mock_PDK
+tier: quick
+timeout_s: 300
+flow:
+  nvariants: 1
+  seed: 1
+cases:
+  - id: nmos_bulk65_w200n
+    subckt: NMOS_UNIT
+    netlist: |
+      .subckt NMOS_UNIT d g s b
+      m0 d g s b n w=200e-9 l=60e-9 nf=2 m=1
+      .ends NMOS_UNIT
+    expect:
+      device_count: 1
+      width_nm: 200
+      length_nm: 60
+      nf: 2
+      m: 1

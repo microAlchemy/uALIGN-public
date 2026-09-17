@@ -1,0 +1,6 @@
+# Run output. Everything here is regenerable.
+# Baselines and cases are not: they live under version control.
+artifacts/
+
+__pycache__/
+*.py[cod]

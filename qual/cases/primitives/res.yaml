@@ -1,0 +1,14 @@
+kind: primitive
+pdk: FinFET14nm_Mock_PDK
+tier: quick
+timeout_s: 300
+flow:
+  nvariants: 1
+  seed: 1
+cases:
+  - id: res_1k
+    subckt: RES_UNIT
+    netlist: |
+      .subckt RES_UNIT p n
+      r0 p n resistor r=1k
+      .ends RES_UNIT

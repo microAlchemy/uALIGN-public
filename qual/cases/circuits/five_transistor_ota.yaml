@@ -1,0 +1,24 @@
+kind: circuit
+pdk: FinFET14nm_Mock_PDK
+tier: quick
+timeout_s: 300
+flow:
+  nvariants: 1
+  seed: 1
+cases:
+  - id: five_transistor_ota
+    subckt: five_transistor_ota
+    netlist: |
+      .subckt five_transistor_ota vbias vss vdd von vin vip
+      mn1 tail vbias vss vss n w=270e-9 l=20e-9 nfin=4 nf=2 m=8
+      mn2 von vin tail vss n w=270e-9 l=20e-9 nfin=4 nf=2 m=16
+      mn3 vop vip tail vss n w=270e-9 l=20e-9 nfin=4 nf=2 m=16
+      mp4 von vop vdd vdd p w=270e-9 l=20e-9 nfin=4 nf=2 m=4
+      mp5 vop vop vdd vdd p w=270e-9 l=20e-9 nfin=4 nf=2 m=4
+      .ends five_transistor_ota
+    constraints:
+      FIVE_TRANSISTOR_OTA:
+        - constraint: PowerPorts
+          ports: ["VDD"]
+        - constraint: GroundPorts
+          ports: ["VSS"]

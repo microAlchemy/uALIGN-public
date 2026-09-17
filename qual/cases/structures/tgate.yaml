@@ -1,0 +1,17 @@
+kind: structure
+pdk: FinFET14nm_Mock_PDK
+tier: quick
+timeout_s: 300
+flow:
+  nvariants: 1
+  seed: 1
+cases:
+  - id: tgate
+    subckt: TGATE
+    netlist: |
+      .subckt TGATE a b clk clkb
+      m1 a clk b vss n w=360e-9 nf=2 m=1 nfin=4
+      m2 a clkb b vdd p w=360e-9 nf=2 m=1 nfin=4
+      .ends TGATE
+    expect:
+      device_count: 2

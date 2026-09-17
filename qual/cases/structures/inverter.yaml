@@ -1,0 +1,16 @@
+kind: structure
+pdk: FinFET14nm_Mock_PDK
+tier: quick
+timeout_s: 300
+flow:
+  nvariants: 1
+  seed: 1
+cases:
+  # ALIGN's own examples/inverter_v1, known to complete the flow.
+  - id: inverter
+    subckt: INVERTER
+    netlist: |
+      .subckt INVERTER vin vout vdd vss
+      mp1 vout vin vdd vdd p w=270e-9 l=20e-9 nfin=6 nf=2
+      mn1 vout vin vss vss n w=270e-9 l=20e-9 nfin=6 nf=2
+      .ends INVERTER

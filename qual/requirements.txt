@@ -1,0 +1,9 @@
+# Kept separate from ALIGN's setup.py so the suite adds no upstream diff.
+#   pip install -r qual/requirements.txt
+pytest>=8.0
+pytest-xdist>=3.5
+PyYAML>=6.0
+
+# Optional, for comparing runs and rendering the summary table.
+# pandas>=2.0
+# dash>=2.0

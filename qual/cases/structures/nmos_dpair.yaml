@@ -1,0 +1,17 @@
+kind: structure
+pdk: FinFET14nm_Mock_PDK
+tier: quick
+timeout_s: 300
+flow:
+  nvariants: 1
+  seed: 1
+cases:
+  - id: nmos_dpair
+    subckt: NMOS_DPAIR
+    netlist: |
+      .subckt NMOS_DPAIR outp outn inp inn vss
+      m1 outp inp vss vss n w=360e-9 nf=2 m=1 nfin=4
+      m2 outn inn vss vss n w=360e-9 nf=2 m=1 nfin=4
+      .ends NMOS_DPAIR
+    expect:
+      device_count: 2

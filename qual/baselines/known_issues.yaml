@@ -1,0 +1,68 @@
+cap_12f_FinFET14nm_Mock_PDK:
+  outcome: pass_with_drc
+  drc_errors: 93
+  area_um2: 0.084269
+  reason: M1 color track pitch violations on capacitor boundary in FinFET14nm_Mock_PDK
+  issue: ALIGN-201
+cap_1p_FinFET14nm_Mock_PDK:
+  outcome: fail
+  drc_errors: 890
+  area_um2: 5.225472
+five_transistor_ota_FinFET14nm_Mock_PDK:
+  outcome: pass
+  area_um2: 0.251204
+high_speed_comparator_FinFET14nm_Mock_PDK:
+  outcome: fail
+  area_um2: 0.548026
+inverter_FinFET14nm_Mock_PDK:
+  outcome: pass
+  area_um2: 0.030106
+linear_equalizer_FinFET14nm_Mock_PDK:
+  outcome: pass_with_drc
+  drc_errors: 280
+  area_um2: 0.685929
+  reason: 2 routing shorts and offgrid wire fills in hierarchical router; requires
+    -flat 1
+  issue: ALIGN-412
+nmos_bulk65_w200n_Bulk65nm_Mock_PDK:
+  outcome: fail
+  status: primitive_fail
+nmos_cascode_FinFET14nm_Mock_PDK:
+  outcome: pass
+  area_um2: 0.018816
+nmos_cmirror_FinFET14nm_Mock_PDK:
+  outcome: pass
+  area_um2: 0.018816
+nmos_dpair_FinFET14nm_Mock_PDK:
+  outcome: pass
+  area_um2: 0.018816
+nmos_nf2_FinFET14nm_Mock_PDK:
+  outcome: pass
+  area_um2: 0.015053
+pmos_bulk65_w200n_Bulk65nm_Mock_PDK:
+  outcome: pass
+  area_um2: 0.13104
+pmos_dpair_FinFET14nm_Mock_PDK:
+  outcome: pass
+  area_um2: 0.018816
+pmos_nf2_FinFET14nm_Mock_PDK:
+  outcome: pass
+  area_um2: 0.015053
+res_1k_FinFET14nm_Mock_PDK:
+  outcome: pass_with_drc
+  drc_errors: 7
+  area_um2: 0.03145
+  reason: Offgrid M1 contact pitch alignment in pdks/FinFET14nm_Mock_PDK/res.py
+  issue: ALIGN-304
+switched_capacitor_filter_FinFET14nm_Mock_PDK:
+  outcome: pass_with_drc
+  drc_errors: 6717
+  area_um2: 19.726795
+  reason: Capacitor array interconnect collinear width violations on layer M3
+  issue: ALIGN-505
+telescopic_ota_FinFET14nm_Mock_PDK:
+  outcome: pass
+  area_um2: 0.176712
+tgate_FinFET14nm_Mock_PDK:
+  outcome: pass
+  area_um2: 0.030106

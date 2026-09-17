@@ -1,0 +1,25 @@
+kind: primitive
+pdk: FinFET14nm_Mock_PDK
+tier: exhaustive
+timeout_s: 300
+flow:
+  nvariants: 1
+  seed: 1
+template:
+  id: "pmos_{label}_nf{nf}_m{m}"
+  subckt: PMOS_UNIT
+  netlist: |
+    .subckt PMOS_UNIT d g s b
+    m0 d g s b p w={w} nf={nf} m={m} nfin={nfin}
+    .ends PMOS_UNIT
+  expect:
+    width_nm: "{w_nm}"
+    nf: "{nf}"
+    m: "{m}"
+    nfin: "{nfin}"
+sweep:
+  device:
+    - {w: 360e-9, w_nm: 360, nfin: 4, label: w360n}
+    - {w: 720e-9, w_nm: 720, nfin: 8, label: w720n}
+  nf: [2, 4]
+  m: [1, 2]

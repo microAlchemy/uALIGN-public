@@ -1,0 +1,30 @@
+kind: circuit
+pdk: FinFET14nm_Mock_PDK
+tier: exhaustive
+timeout_s: 1800
+flow:
+  nvariants: 1
+  seed: 1
+cases:
+- id: linear_equalizer
+  subckt: linear_equalizer
+  netlist: ".subckt nfet2x d g s b\n.param p1=2\n    MN0 d g n1 b    nfet l=0.014u\
+    \ nfin=12 nf=p1\n    MN1 n1 g s b    nfet l=0.014u nfin=12 nf=p1\n.ends nfet2x\n\
+    \n.subckt linear_equalizer vmirror_ctle s0_ctle s3_ctle vin1 vin2 vout_ctle1 vout_ctle2\
+    \ vps vgnd\n.param nfpf_cm=6 nfpf_dp=4 nfpf_sw=4 Rsw=100 Csw=3464n rl=800\n\n\t\
+    xI0 vout_ctle2 vin2 net8 vgnd nfet2x p1=nfpf_dp\n\txI1 vout_ctle1 vin1 net5 vgnd\
+    \ nfet2x p1=nfpf_dp\n\txI4 vmirror_ctle vmirror_ctle vgnd vgnd nfet2x p1=nfpf_cm\n\
+    \txI3 net5 vmirror_ctle vgnd vgnd nfet2x p1=nfpf_cm\n\txI2 net8 vmirror_ctle vgnd\
+    \ vgnd nfet2x p1=nfpf_cm\n\tR1 vps vout_ctle2 resistor r=rl\n\tR0 vps vout_ctle1\
+    \ resistor r=rl\n\tC4 net021 net8 capacitor w=Csw l=Csw\n\tC3 net5 net022 capacitor\
+    \ w=Csw l=Csw\n\tR4 net5 net016 resistor r=Rsw\n\tR3 net015 net8 resistor r=Rsw\n\
+    \tMN9 net021 s3_ctle net022 vgnd nfet l=0.014u nfin=12 nf=nfpf_sw\n\tMN6 net015\
+    \ s0_ctle net016 vgnd nfet l=0.014u nfin=12 nf=nfpf_sw\n.ends linear_equalizer"
+  constraints:
+    LINEAR_EQUALIZER:
+    - constraint: PowerPorts
+      ports:
+      - VPS
+    - constraint: GroundPorts
+      ports:
+      - VGND

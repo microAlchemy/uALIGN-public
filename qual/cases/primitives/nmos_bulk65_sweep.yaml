@@ -1,0 +1,27 @@
+kind: primitive
+pdk: Bulk65nm_Mock_PDK
+tier: exhaustive
+timeout_s: 300
+flow:
+  nvariants: 1
+  seed: 1
+template:
+  id: "nmos_bulk65_{label}_l{l_nm}_nf{nf}"
+  subckt: NMOS_UNIT
+  netlist: |
+    .subckt NMOS_UNIT d g s b
+    m0 d g s b n w={w} l={l} nf={nf} m=1
+    .ends NMOS_UNIT
+  expect:
+    width_nm: "{w_nm}"
+    length_nm: "{l_nm}"
+    nf: "{nf}"
+    m: 1
+sweep:
+  device:
+    - {w: 200e-9, w_nm: 200, label: w200n}
+    - {w: 400e-9, w_nm: 400, label: w400n}
+  geom:
+    - {l: 60e-9, l_nm: 60}
+    - {l: 80e-9, l_nm: 80}
+  nf: [2, 4]
