@@ -12,3 +12,15 @@ cases:
       .subckt CAP_UNIT p n
       c0 p n 12f
       .ends CAP_UNIT
+<<<<<<< Updated upstream
+=======
+<<<<<<< Updated upstream
+=======
+  - id: cap_1p
+    subckt: CAP_UNIT
+    netlist: |
+      .subckt CAP_UNIT p n
+      c0 p n 1p
+      .ends CAP_UNIT
+>>>>>>> Stashed changes
+>>>>>>> Stashed changes

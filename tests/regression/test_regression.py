@@ -45,7 +45,7 @@ def test_regression(pdk_dir, design_dir):
     nm = design_dir.name
 
     args = [str(design_dir), '-f', str(design_dir / f"{nm}.sp"), '-s', nm, '-p', str(pdk_dir),
-            '-flat',  str(1 if nm in run_flat else 0), '--generate', '--regression']
+            '-flat',  str(1 if nm in run_flat else 0), '--regression']
 
     results = align.CmdlineParser().parse_args(args)
     assert results is not None, f"{nm} :No results generated"

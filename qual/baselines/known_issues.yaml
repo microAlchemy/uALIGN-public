@@ -5,15 +5,33 @@ cap_12f_FinFET14nm_Mock_PDK:
   reason: M1 color track pitch violations on capacitor boundary in FinFET14nm_Mock_PDK
   issue: ALIGN-201
 cap_1p_FinFET14nm_Mock_PDK:
+<<<<<<< Updated upstream
   outcome: fail
+=======
+<<<<<<< Updated upstream
+  outcome: fail
+=======
+  outcome: pass_with_drc
+>>>>>>> Stashed changes
+>>>>>>> Stashed changes
   drc_errors: 890
   area_um2: 5.225472
 five_transistor_ota_FinFET14nm_Mock_PDK:
   outcome: pass
   area_um2: 0.251204
 high_speed_comparator_FinFET14nm_Mock_PDK:
+<<<<<<< Updated upstream
   outcome: fail
   area_um2: 0.548026
+=======
+<<<<<<< Updated upstream
+  outcome: fail
+  area_um2: 0.548026
+=======
+  outcome: pass
+  area_um2: 0.826308
+>>>>>>> Stashed changes
+>>>>>>> Stashed changes
 inverter_FinFET14nm_Mock_PDK:
   outcome: pass
   area_um2: 0.030106
@@ -25,11 +43,37 @@ linear_equalizer_FinFET14nm_Mock_PDK:
     -flat 1
   issue: ALIGN-412
 nmos_bulk65_w200n_Bulk65nm_Mock_PDK:
+<<<<<<< Updated upstream
+=======
+<<<<<<< Updated upstream
+>>>>>>> Stashed changes
   outcome: fail
   status: primitive_fail
 nmos_cascode_FinFET14nm_Mock_PDK:
   outcome: pass
   area_um2: 0.018816
+<<<<<<< Updated upstream
+=======
+=======
+  outcome: pass
+  area_um2: 0.13104
+nmos_bulk65_w200n_l60_nf2_Bulk65nm_Mock_PDK:
+  outcome: pass
+  area_um2: 0.13104
+nmos_bulk65_w200n_l60_nf4_Bulk65nm_Mock_PDK:
+  outcome: pass
+  area_um2: 0.16016
+nmos_bulk65_w400n_l80_nf2_Bulk65nm_Mock_PDK:
+  outcome: pass
+  area_um2: 0.16016
+nmos_bulk65_w400n_l80_nf4_Bulk65nm_Mock_PDK:
+  outcome: pass
+  area_um2: 0.18928
+nmos_cascode_FinFET14nm_Mock_PDK:
+  outcome: pass
+  area_um2: 0.030106
+>>>>>>> Stashed changes
+>>>>>>> Stashed changes
 nmos_cmirror_FinFET14nm_Mock_PDK:
   outcome: pass
   area_um2: 0.018816
@@ -39,6 +83,36 @@ nmos_dpair_FinFET14nm_Mock_PDK:
 nmos_nf2_FinFET14nm_Mock_PDK:
   outcome: pass
   area_um2: 0.015053
+<<<<<<< Updated upstream
+=======
+<<<<<<< Updated upstream
+=======
+nmos_w360n_nf2_m1_FinFET14nm_Mock_PDK:
+  outcome: pass
+  area_um2: 0.015053
+nmos_w360n_nf2_m2_FinFET14nm_Mock_PDK:
+  outcome: pass
+  area_um2: 0.018816
+nmos_w360n_nf4_m1_FinFET14nm_Mock_PDK:
+  outcome: pass
+  area_um2: 0.018816
+nmos_w360n_nf4_m2_FinFET14nm_Mock_PDK:
+  outcome: pass
+  area_um2: 0.026342
+nmos_w720n_nf2_m1_FinFET14nm_Mock_PDK:
+  outcome: pass
+  area_um2: 0.015053
+nmos_w720n_nf2_m2_FinFET14nm_Mock_PDK:
+  outcome: pass
+  area_um2: 0.018816
+nmos_w720n_nf4_m1_FinFET14nm_Mock_PDK:
+  outcome: pass
+  area_um2: 0.018816
+nmos_w720n_nf4_m2_FinFET14nm_Mock_PDK:
+  outcome: pass
+  area_um2: 0.026342
+>>>>>>> Stashed changes
+>>>>>>> Stashed changes
 pmos_bulk65_w200n_Bulk65nm_Mock_PDK:
   outcome: pass
   area_um2: 0.13104

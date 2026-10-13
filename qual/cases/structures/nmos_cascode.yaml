@@ -10,7 +10,15 @@ cases:
     subckt: NMOS_CASCODE
     netlist: |
       .subckt NMOS_CASCODE out in bias vss
+<<<<<<< Updated upstream
       m1 out bias vss vss n w=360e-9 nf=2 m=1 nfin=4
+=======
+<<<<<<< Updated upstream
+      m1 out bias vss vss n w=360e-9 nf=2 m=1 nfin=4
+=======
+      m1 out bias net1 vss n w=360e-9 nf=2 m=1 nfin=4
+>>>>>>> Stashed changes
+>>>>>>> Stashed changes
       m2 net1 in vss vss n w=360e-9 nf=2 m=1 nfin=4
       .ends NMOS_CASCODE
     expect:

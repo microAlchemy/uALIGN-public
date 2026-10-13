@@ -19,15 +19,26 @@ except:
     # Python 3.7 Backport
     from typing_extensions import Literal
 
-# Pass through directly from pydantic
-from pydantic import \
-    validator, \
-    root_validator, \
-    validate_arguments, \
-    PrivateAttr
+# Pass through directly from pydantic (supports both v1 and v2 via pydantic.v1)
+try:
+    import pydantic.v1 as pydantic
+    from pydantic.v1 import \
+        validator, \
+        root_validator, \
+        validate_arguments, \
+        PrivateAttr
+    import pydantic.v1.generics as _pydantic_generics
+    pydantic.generics = _pydantic_generics
+except ImportError:
+    import pydantic
+    from pydantic import \
+        validator, \
+        root_validator, \
+        validate_arguments, \
+        PrivateAttr
+    import pydantic.generics
 
 # Custom ALIGN types (BaseModel, List, Dict) defined below
-import pydantic.generics
 import typing
 import collections
 import random

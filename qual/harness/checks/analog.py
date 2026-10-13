@@ -126,8 +126,18 @@ def check(case: Case, result: RunResult, run_dir: Path | None = None) -> list[Fi
               "efficiency_pct": round(area_efficiency_pct, 2)},
     ))
 
+<<<<<<< Updated upstream
     # 2. Differential Net Symmetry Analysis
     diff_pairs = _find_differential_pairs(case, pnr_dir, net_wirelength_um)
+=======
+<<<<<<< Updated upstream
+    # 2. Differential Net Symmetry Analysis
+    diff_pairs = _find_differential_pairs(case, pnr_dir, net_wirelength_um)
+=======
+    # 2. Differential Net Symmetry Analysis (skipped for single-device primitives)
+    diff_pairs = [] if case.kind == "primitive" else _find_differential_pairs(case, pnr_dir, net_wirelength_um)
+>>>>>>> Stashed changes
+>>>>>>> Stashed changes
     max_mismatch_pct = 0.0
     max_via_delta = 0
     symmetry_penalties = 0.0
@@ -190,6 +200,15 @@ def check(case: Case, result: RunResult, run_dir: Path | None = None) -> list[Fi
     if diff_pairs:
         result.max_diff_net_mismatch_pct = round(max_mismatch_pct, 2)
         result.max_diff_via_delta = max_via_delta
+<<<<<<< Updated upstream
+=======
+<<<<<<< Updated upstream
+=======
+    else:
+        result.max_diff_net_mismatch_pct = None
+        result.max_diff_via_delta = None
+>>>>>>> Stashed changes
+>>>>>>> Stashed changes
 
     # 3. Placement Symmetry Verification
     placement_findings, placement_penalty = _verify_placement_symmetry(case, pnr_dir)
@@ -270,9 +289,21 @@ def _find_differential_pairs(
                 _add_pair(n1, n2)
             elif n1.endswith("_N") and n2.endswith("_P") and n1[:-2] == n2[:-2]:
                 _add_pair(n1, n2)
+<<<<<<< Updated upstream
             elif n1.endswith("P") and n2.endswith("N") and n1[:-1] == n2[:-1]:
                 _add_pair(n1, n2)
             elif n1.endswith("N") and n2.endswith("P") and n1[:-1] == n2[:-1]:
+=======
+<<<<<<< Updated upstream
+            elif n1.endswith("P") and n2.endswith("N") and n1[:-1] == n2[:-1]:
+                _add_pair(n1, n2)
+            elif n1.endswith("N") and n2.endswith("P") and n1[:-1] == n2[:-1]:
+=======
+            elif n1.endswith("P") and n2.endswith("N") and len(n1[:-1]) >= 1 and n1[:-1] == n2[:-1]:
+                _add_pair(n1, n2)
+            elif n1.endswith("N") and n2.endswith("P") and len(n1[:-1]) >= 1 and n1[:-1] == n2[:-1]:
+>>>>>>> Stashed changes
+>>>>>>> Stashed changes
                 _add_pair(n1, n2)
 
     return pairs

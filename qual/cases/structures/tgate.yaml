@@ -9,9 +9,21 @@ cases:
   - id: tgate
     subckt: TGATE
     netlist: |
+<<<<<<< Updated upstream
       .subckt TGATE a b clk clkb
       m1 a clk b vss n w=360e-9 nf=2 m=1 nfin=4
       m2 a clkb b vdd p w=360e-9 nf=2 m=1 nfin=4
+=======
+<<<<<<< Updated upstream
+      .subckt TGATE a b clk clkb
+      m1 a clk b vss n w=360e-9 nf=2 m=1 nfin=4
+      m2 a clkb b vdd p w=360e-9 nf=2 m=1 nfin=4
+=======
+      .subckt TGATE a b clk clkb bn bp
+      m1 a clk b bn n w=360e-9 nf=2 m=1 nfin=4
+      m2 a clkb b bp p w=360e-9 nf=2 m=1 nfin=4
+>>>>>>> Stashed changes
+>>>>>>> Stashed changes
       .ends TGATE
     expect:
       device_count: 2
