@@ -1,26 +1,31 @@
-* sky130 five_transistor_ota AC testbench
+* sky130 five_transistor_ota AC testbench (official SkyWater BSIM4v5 models)
 .title sky130_five_transistor_ota_tb
 
-* MODELS_BEGIN - sky130_fd_pr__* stubs; run_simulation.sh replaces with real PDK .lib when available
-.model sky130_fd_pr__pfet_01v8 pmos w=1 l=1 vt0=-0.1
-.model sky130_fd_pr__nfet_01v8 nmos w=1 l=1 vt0=0.1
-* MODELS_END
-* ALIGN convenience aliases - level-1 stubs; mapped to sky130_fd_pr__ names in circuit when real PDK is used
-.model nmos_rvt nmos l=1 w=1 nfin=1 nf=1 m=1 stack=1 parallel=1 vt0=0.1
-.model pmos_rvt pmos l=1 w=1 nfin=1 nf=1 m=1 stack=1 parallel=1 vt0=-0.1
-.model nmos_lvt nmos l=1 w=1 nfin=1 nf=1 m=1 stack=1 parallel=1 vt0=0.1
-.model pmos_lvt pmos l=1 w=1 nfin=1 nf=1 m=1 stack=1 parallel=1 vt0=-0.1
-.model nmos_hvt nmos l=1 w=1 nfin=1 nf=1 m=1 stack=1 parallel=1 vt0=0.1
-.model pmos_hvt pmos l=1 w=1 nfin=1 nf=1 m=1 stack=1 parallel=1 vt0=-0.1
+.option scale=1e-6
+.param mc_mm_switch=0
+.param mc_pr_switch=0
+.param sky130_fd_pr__pfet_01v8__wlod_diff=0.0
+.param sky130_fd_pr__pfet_01v8__kvth0_diff=0.0
+.param sky130_fd_pr__pfet_01v8__lkvth0_diff=0.0
+.param sky130_fd_pr__pfet_01v8__wkvth0_diff=0.0
+.param sky130_fd_pr__pfet_01v8__ku0_diff=0.0
+.param sky130_fd_pr__pfet_01v8__lku0_diff=0.0
+.param sky130_fd_pr__pfet_01v8__wku0_diff=0.0
+.param sky130_fd_pr__pfet_01v8__kvsat_diff=0.0
 
-.include extracted.spice
+.include "sky130_fd_pr__nfet_01v8__mismatch.corner.spice"
+.include "sky130_fd_pr__nfet_01v8__tt.corner.spice"
+.include "sky130_fd_pr__pfet_01v8__mismatch.corner.spice"
+.include "sky130_fd_pr__pfet_01v8__tt.corner.spice"
+
+.include "extracted.spice"
 
 * supplies
 Vdd vdd 0 1.8
 Vss vss 0 0
 
 * bias: current source reference
-Vbias id vss 0.6
+Vbias id vss 0.85
 
 * DC operating point: vinn = 0.9V, vinp = 0.9V + AC
 Vinn vinn vss 0.9
@@ -30,9 +35,9 @@ Vinp vinp vss 0.9 AC 1
 Xota vss vdd vout vinn vinp id five_transistor_ota
 
 .ac dec 20 1k 10g
-.print ac v(vout)
+.print ac vdb(vout)
 
-.measure ac gain_lin MAX v(vout)
-.measure ac ugbw_mhz WHEN v(vout)=1 CROSS=1
+.measure ac gain_lin MAX vmag(vout)
+.measure ac ugbw WHEN vmag(vout)=1 CROSS=1
 
 .end

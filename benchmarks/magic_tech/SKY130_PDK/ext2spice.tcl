@@ -1,45 +1,55 @@
-# ext2spice.tcl — reads INPUT_GDS, extracts parasitics, writes SPICE
-# Usage: magic -dnull -noconsole -rcfile FinFET14nm.magicrc < ext2spice.tcl
+# ext2spice.tcl — reads INPUT_GDS, flattens into CIRCUIT, extracts devices + RC parasitics
+# Usage: magic -dnull -noconsole -T SKY130.tech < ext2spice.tcl
 # Environment variables set before invocation:
 #   INPUT_GDS  — absolute path to GDS file
 #   OUTPUT_DIR — directory to write extracted.spice
+#   CIRCUIT    — top-level circuit name
 
 set input_gds $env(INPUT_GDS)
 set output_dir $env(OUTPUT_DIR)
+set circuit $env(CIRCUIT)
 
 gds readonly true
 gds read $input_gds
 
-# Find the top-level cell: ALIGN writes it first in the GDS and names it
-# {CIRCUIT_UPPER}_0. Match by prefix so layout variants are handled.
-set cells [cellname list allcells]
-set circuit_upper [string toupper $env(CIRCUIT)]
+# Discover the top-level cell while filtering out Magic's default "(UNNAMED)" buffer
+set top_candidates [lsearch -all -inline -not [cellname list top] "(UNNAMED)"]
+set all_candidates [lsearch -all -inline -not [cellname list allcells] "(UNNAMED)"]
+set circuit_upper [string toupper $circuit]
 set topcell ""
-foreach cell $cells {
-    if {[string match "${circuit_upper}_*" $cell]} {
+
+foreach cell $all_candidates {
+    if {[string match "${circuit_upper}_*" $cell] || [string equal -nocase $cell $circuit]} {
         set topcell $cell
         break
     }
 }
-# Fallback: first cell in list (ALIGN top-level is written first)
-if {$topcell eq ""} {
-    set topcell [lindex $cells 0]
+if {$topcell eq "" && [llength $top_candidates] > 0} {
+    set topcell [lindex $top_candidates 0]
 }
-puts "ext2spice: loading top cell '$topcell'"
+if {$topcell eq "" && [llength $all_candidates] > 0} {
+    set topcell [lindex $all_candidates 0]
+}
 
+puts "ext2spice: loading and flattening top cell '$topcell' -> '$circuit'"
 load $topcell
 select top cell
+expand
+flatten ${topcell}_flat
+load ${topcell}_flat
+cellname rename ${topcell}_flat $circuit
+select top cell
 
-# Run extraction
+# Extract devices and full lumped R/C parasitics
 extract all
-
-# Write extracted SPICE
+ext2spice lvs
 ext2spice rthresh 0
 ext2spice cthresh 0
+ext2spice subcircuit top on
 ext2spice format ngspice
 ext2spice -o ${output_dir}/extracted.spice
 
-# Clean up .ext files
+# Clean up intermediate .ext files
 foreach f [glob -nocomplain *.ext] { file delete $f }
 
 quit

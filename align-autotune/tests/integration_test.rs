@@ -7,7 +7,12 @@ use align_autotune::parsers::spice::{ExtractedCircuit, PexNet};
 use align_autotune::remediation::constraints::{
     AlignInOrder, AspectRatio, HardConstraint, SoftConstraint, SymmetricNets, UserConstraint,
 };
+use align_autotune::runners::{
+    extract_subckt_ports, find_top_gds, normalize_top_subckt_header, stage_design_inputs,
+    IterationWorkspace,
+};
 use std::collections::HashMap;
+use std::fs;
 use std::path::PathBuf;
 
 #[test]
@@ -138,4 +143,55 @@ fn test_evaluate_foms() {
     assert_eq!(ranked.len(), 2);
     assert_eq!(ranked[0].net_name, "VIP");
     assert_eq!(ranked[1].net_name, "VIN");
+}
+
+#[test]
+fn test_runners_workspace_and_sanitizers() {
+    let base_dir = std::env::temp_dir().join("align_autotune_runner_test");
+    let _ = fs::remove_dir_all(&base_dir);
+
+    let ws = IterationWorkspace::prepare(&base_dir, 0).unwrap();
+    assert!(ws.root_dir.ends_with("iter_0"));
+    assert!(ws.design_dir.is_dir());
+
+    // Test staging netlist + constraints into iter_0/design/
+    let dummy_sp = base_dir.join("source_ota.sp");
+    fs::write(
+        &dummy_sp,
+        ".subckt ota vip vin vout vdd vss\nM0 vout vip vss vss nmos w=1u l=90n nfin=4 nf=2\n.ends ota\n",
+    )
+    .unwrap();
+
+    let constraints: Vec<Box<dyn SoftConstraint>> = vec![Box::new(SymmetricNets {
+        direction: "V".to_string(),
+        net1: "VIP".to_string(),
+        net2: "VIN".to_string(),
+        pins1: None,
+        pins2: None,
+    })];
+
+    let staged_sp = stage_design_inputs("ota", &dummy_sp, &constraints, &ws.design_dir).unwrap();
+    assert!(staged_sp.is_file());
+    assert!(ws.design_dir.join("ota.const.json").is_file());
+
+    // Test GDS discovery prefers real .gds over .python.gds
+    fs::write(ws.root_dir.join("OTA_0.python.gds"), b"py").unwrap();
+    fs::write(ws.root_dir.join("OTA_0.gds"), b"real").unwrap();
+    let gds = find_top_gds(&args_or_path(&ws.root_dir), "ota").unwrap();
+    assert_eq!(gds.file_name().unwrap().to_str().unwrap(), "OTA_0.gds");
+
+    // Test top-level .subckt header normalization and schematic port extraction
+    let ports = extract_subckt_ports(&fs::read_to_string(&staged_sp).unwrap(), "ota");
+    assert_eq!(ports, vec!["vip", "vin", "vout", "vdd", "vss"]);
+
+    let raw_magic = "* Magic extracted\n.subckt OTA_0 VOUT VDD VSS VIN VIP\nC0 VIP 0 1.2f\n.ends\n";
+    let normalized = normalize_top_subckt_header(raw_magic, "ota", &ports);
+    assert!(normalized.contains(".subckt ota vip vin vout vdd vss\n"));
+    assert!(normalized.trim_end().ends_with(".ends ota"));
+
+    let _ = fs::remove_dir_all(&base_dir);
+}
+
+fn args_or_path(p: &std::path::Path) -> PathBuf {
+    p.to_path_buf()
 }
