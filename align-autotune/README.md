@@ -1,6 +1,6 @@
 # align-autotune
 
-`align-autotune` is a closed-loop layout tuning wrapper for [ALIGN](https://github.com/ALIGN-analoglayout/ALIGN-public). It orchestrates ALIGN layout generation, Magic parasitic extraction (PEX), and ngspice simulation to evaluate post-layout Figures of Merit (such as differential capacitance imbalance and bandwidth retention) and iteratively refine `.const.json` layout constraints until target specifications are met.
+`align-autotune` is a closed-loop layout tuning wrapper for [ALIGN](https://github.com/ALIGN-analoglayout/ALIGN-public). It orchestrates ALIGN layout generation, Magic parasitic extraction (PEX), and ngspice simulation to evaluate post-layout Figures of Merit (such as differential capacitance imbalance and bandwidth retention) and iteratively refine `.const.json` layout constraints until target specifications are met. However, ngspice simulation must be provided for the simulation required FoM's. 
 
 ## Prerequisites & Setup
 
@@ -35,6 +35,7 @@ cargo test
 cargo run -- --help
 
 # Run the autotune loop (Sky130 PDK)
+# Default reference nets: 0,sub,gnd,vss,vgnd,vsubs,vdd,vpwr (override with --ref-nets <csv>)
 cargo run -- \
   --circuit five_transistor_ota \
   --netlist ../examples/five_transistor_ota/five_transistor_ota.sp \

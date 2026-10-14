@@ -1,9 +1,10 @@
 use align_autotune::analysis::{evaluate_foms, rank_net_admittances, AnalysisInputs, FoMReport};
-use align_autotune::config::{AutoTuneConfig, TargetFoMs};
+use align_autotune::config::{default_reference_nets, AutoTuneConfig, TargetFoMs};
 use align_autotune::flow::run_autotune_loop;
-use align_autotune::parsers::ngspice_out::SimMeasurements;
-use align_autotune::parsers::pnr_json::LayoutGeometry;
-use align_autotune::parsers::spice::{ExtractedCircuit, PexNet};
+use align_autotune::parsers::{
+    parse_ngspice_log_str, parse_pex_spice_str, parse_pex_spice_str_with_refs,
+    parse_pnr_layout_str, ExtractedCircuit, LayoutGeometry, PexNet, SimMeasurements,
+};
 use align_autotune::remediation::constraints::{
     AlignInOrder, AspectRatio, HardConstraint, SoftConstraint, SymmetricNets, UserConstraint,
 };
@@ -24,6 +25,7 @@ fn test_barebones_flow() {
         work_dir: PathBuf::from("/tmp/test_autotune"),
         max_iterations: 1,
         targets: TargetFoMs::default(),
+        reference_nets: default_reference_nets(),
     };
 
     let result = run_autotune_loop(&config);
@@ -190,6 +192,58 @@ fn test_runners_workspace_and_sanitizers() {
     assert!(normalized.trim_end().ends_with(".ends ota"));
 
     let _ = fs::remove_dir_all(&base_dir);
+}
+
+#[test]
+fn test_parsers_spice_pnr_and_ngspice() {
+    let spice_text = "\
+* NGSPICE file created from five_transistor_ota.ext - technology: sky130A
+.subckt five_transistor_ota vss vdd vout vinn vinp id
+X0 VSS ID ID VSS sky130_fd_pr__nfet_01v8 w=1.05 l=0.15
+C0 VINN VSS 2.1443f $ **FLOATING
+C1 VINP VSS 2.1096f
+C2 VINP VINN 4.0025f
+C3 VOUT VINN -0.0075f
+.ends five_transistor_ota
+";
+    let pex = parse_pex_spice_str(spice_text).unwrap();
+    let vinp = pex.nets.get("VINP").unwrap();
+    let vinn = pex.nets.get("VINN").unwrap();
+    assert!((vinp.total_c_ground - 2.1096e-15).abs() < 1e-20);
+    assert!((vinn.total_c_ground - 2.1443e-15).abs() < 1e-20);
+    assert!((vinp.coupling_caps["VINN"] - 4.0025e-15).abs() < 1e-20);
+    assert!(!vinn.coupling_caps.contains_key("VOUT")); // negative noise ignored
+
+    // Explicit custom reference nets override the defaults
+    let custom_pex = parse_pex_spice_str_with_refs(spice_text, &["sub".to_string()]).unwrap();
+    assert!(custom_pex.nets.contains_key("VSS"));
+
+    let pnr_json = r#"{
+        "bbox": [0, 0, 10000, 20000],
+        "terminals": [
+            {"layer": "Active", "netType": "drawing", "rect": [0, 0, 10000, 5000]},
+            {"layer": "M1", "netType": "drawing", "rect": [100, 0, 350, 8000]},
+            {"layer": "M2", "netType": "pin", "rect": [0, 200, 6000, 480]},
+            {"layer": "V0", "netType": "drawing", "rect": [100, 100, 270, 270]},
+            {"layer": "V1", "netType": "drawing", "rect": [100, 200, 270, 370]}
+        ]
+    }"#;
+    let geom = parse_pnr_layout_str(pnr_json).unwrap();
+    assert!((geom.width_um - 10.0).abs() < 1e-9);
+    assert!((geom.height_um - 20.0).abs() < 1e-9);
+    assert!((geom.active_area_um2 - 50.0).abs() < 1e-9);
+    assert!((geom.total_wirelength_um - 14.0).abs() < 1e-9);
+    assert_eq!(geom.total_vias, 2);
+
+    let ngspice_log = "\
+gain_lin            =  7.53071e+00 at=  1.00000e+03
+ugbw                =   6.41105e+09
+Total elapsed time (seconds) = 0.127
+";
+    let sim = parse_ngspice_log_str(ngspice_log).unwrap();
+    assert!((sim.measures["gain_lin"] - 7.53071).abs() < 1e-6);
+    assert!((sim.measures["ugbw"] - 6.41105e9).abs() < 1.0);
+    assert!(!sim.measures.contains_key("total elapsed time (seconds)"));
 }
 
 fn args_or_path(p: &std::path::Path) -> PathBuf {

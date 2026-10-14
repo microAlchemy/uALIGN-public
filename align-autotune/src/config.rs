@@ -24,4 +24,16 @@ pub struct AutoTuneConfig {
     pub work_dir: PathBuf,
     pub max_iterations: usize,
     pub targets: TargetFoMs,
+    #[serde(default = "default_reference_nets")]
+    pub reference_nets: Vec<String>,
+}
+
+pub const DEFAULT_REFERENCE_NETS: &[&str] =
+    &["0", "sub", "gnd", "vss", "vgnd", "vsubs", "vdd", "vpwr"];
+
+pub fn default_reference_nets() -> Vec<String> {
+    DEFAULT_REFERENCE_NETS
+        .iter()
+        .map(|s| (*s).to_string())
+        .collect()
 }

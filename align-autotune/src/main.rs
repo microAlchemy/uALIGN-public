@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use anyhow::Result;
 use clap::Parser;
 
-use align_autotune::config::{AutoTuneConfig, TargetFoMs};
+use align_autotune::config::{default_reference_nets, AutoTuneConfig, TargetFoMs};
 use align_autotune::flow::run_autotune_loop;
 
 #[derive(Parser, Debug)]
@@ -31,6 +31,14 @@ struct Args {
 
     #[arg(short, long, default_value_t = 3, help = "Maximum tuning iterations")]
     max_iters: usize,
+
+    #[arg(
+        long,
+        value_delimiter = ',',
+        default_values_t = default_reference_nets(),
+        help = "Comma-separated AC ground/power reference nets (overrides defaults)"
+    )]
+    ref_nets: Vec<String>,
 }
 
 fn main() -> Result<()> {
@@ -43,6 +51,7 @@ fn main() -> Result<()> {
         work_dir: args.work_dir,
         max_iterations: args.max_iters,
         targets: TargetFoMs::default(),
+        reference_nets: args.ref_nets,
     };
 
     println!("Starting ALIGN autotune for circuit: {}", config.circuit);
