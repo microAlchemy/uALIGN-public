@@ -12,7 +12,7 @@ pub fn total_net_capacitance(net: &PexNet) -> f64 {
     net.total_c_ground + coupling_sum
 }
 
-fn find_net<'a>(circuit: &'a ExtractedCircuit, target: &str) -> Option<&'a PexNet> {
+pub fn find_net<'a>(circuit: &'a ExtractedCircuit, target: &str) -> Option<&'a PexNet> {
     circuit.nets.get(target).or_else(|| {
         circuit
             .nets

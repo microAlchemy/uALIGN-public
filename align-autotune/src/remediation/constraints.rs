@@ -11,14 +11,23 @@ use std::fmt::Debug;
 /// Handles schema identity (`"constraint": "<Name>"`) and JSON serialization.
 pub trait SoftConstraint: Debug + Send + Sync {
     /// Canonical ALIGN constraint name (e.g. `"SymmetricNets"`).
-    fn constraint_name(&self) -> &'static str;
+    fn constraint_name(&self) -> &str;
 
     /// Serialize this constraint to a JSON object with `"constraint"` injected.
     fn to_json(&self) -> Value;
 
+    /// Clone this trait object into a new boxed `SoftConstraint`.
+    fn clone_box(&self) -> Box<dyn SoftConstraint>;
+
     /// Optional lower-level companion constraints (e.g. `DoNotIdentify`).
     fn yield_constraints(&self) -> Vec<Box<dyn SoftConstraint>> {
         Vec::new()
+    }
+}
+
+impl Clone for Box<dyn SoftConstraint> {
+    fn clone(&self) -> Self {
+        self.clone_box()
     }
 }
 
@@ -35,7 +44,7 @@ pub trait UserConstraint: HardConstraint {
 }
 
 /// Helper to inject `"constraint": <name>` into a serialized struct's JSON map.
-fn serialize_with_tag<T: Serialize>(name: &'static str, value: &T) -> Value {
+fn serialize_with_tag<T: Serialize>(name: &str, value: &T) -> Value {
     let mut map = match serde_json::to_value(value).unwrap_or_else(|_| json!({})) {
         Value::Object(m) => m,
         _ => serde_json::Map::new(),
@@ -60,12 +69,16 @@ pub struct SymmetricNets {
 }
 
 impl SoftConstraint for SymmetricNets {
-    fn constraint_name(&self) -> &'static str {
+    fn constraint_name(&self) -> &str {
         "SymmetricNets"
     }
 
     fn to_json(&self) -> Value {
         serialize_with_tag(self.constraint_name(), self)
+    }
+
+    fn clone_box(&self) -> Box<dyn SoftConstraint> {
+        Box::new(self.clone())
     }
 }
 
@@ -75,12 +88,16 @@ pub struct PlaceCloser {
 }
 
 impl SoftConstraint for PlaceCloser {
-    fn constraint_name(&self) -> &'static str {
+    fn constraint_name(&self) -> &str {
         "PlaceCloser"
     }
 
     fn to_json(&self) -> Value {
         serialize_with_tag(self.constraint_name(), self)
+    }
+
+    fn clone_box(&self) -> Box<dyn SoftConstraint> {
+        Box::new(self.clone())
     }
 }
 
@@ -90,12 +107,137 @@ pub struct DoNotIdentify {
 }
 
 impl SoftConstraint for DoNotIdentify {
-    fn constraint_name(&self) -> &'static str {
+    fn constraint_name(&self) -> &str {
         "DoNotIdentify"
     }
 
     fn to_json(&self) -> Value {
         serialize_with_tag(self.constraint_name(), self)
+    }
+
+    fn clone_box(&self) -> Box<dyn SoftConstraint> {
+        Box::new(self.clone())
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct NetPriority {
+    pub nets: Vec<String>,
+    pub weight: i32,
+}
+
+impl SoftConstraint for NetPriority {
+    fn constraint_name(&self) -> &str {
+        "NetPriority"
+    }
+
+    fn to_json(&self) -> Value {
+        serialize_with_tag(self.constraint_name(), self)
+    }
+
+    fn clone_box(&self) -> Box<dyn SoftConstraint> {
+        Box::new(self.clone())
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct NetConst {
+    pub nets: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub shield: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub criticality: Option<i32>,
+}
+
+impl SoftConstraint for NetConst {
+    fn constraint_name(&self) -> &str {
+        "NetConst"
+    }
+
+    fn to_json(&self) -> Value {
+        serialize_with_tag(self.constraint_name(), self)
+    }
+
+    fn clone_box(&self) -> Box<dyn SoftConstraint> {
+        Box::new(self.clone())
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CompactPlacement {
+    pub style: String,
+}
+
+impl SoftConstraint for CompactPlacement {
+    fn constraint_name(&self) -> &str {
+        "CompactPlacement"
+    }
+
+    fn to_json(&self) -> Value {
+        serialize_with_tag(self.constraint_name(), self)
+    }
+
+    fn clone_box(&self) -> Box<dyn SoftConstraint> {
+        Box::new(self.clone())
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PowerPorts {
+    pub ports: Vec<String>,
+}
+
+impl SoftConstraint for PowerPorts {
+    fn constraint_name(&self) -> &str {
+        "PowerPorts"
+    }
+
+    fn to_json(&self) -> Value {
+        serialize_with_tag(self.constraint_name(), self)
+    }
+
+    fn clone_box(&self) -> Box<dyn SoftConstraint> {
+        Box::new(self.clone())
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GroundPorts {
+    pub ports: Vec<String>,
+}
+
+impl SoftConstraint for GroundPorts {
+    fn constraint_name(&self) -> &str {
+        "GroundPorts"
+    }
+
+    fn to_json(&self) -> Value {
+        serialize_with_tag(self.constraint_name(), self)
+    }
+
+    fn clone_box(&self) -> Box<dyn SoftConstraint> {
+        Box::new(self.clone())
+    }
+}
+
+/// Preserves arbitrary pre-existing ALIGN constraints from `.const.json` (e.g., `GroupBlocks`, `ClockPorts`).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RawConstraint {
+    pub name: String,
+    pub payload: Value,
+}
+
+impl SoftConstraint for RawConstraint {
+    fn constraint_name(&self) -> &str {
+        &self.name
+    }
+
+    fn to_json(&self) -> Value {
+        self.payload.clone()
+    }
+
+    fn clone_box(&self) -> Box<dyn SoftConstraint> {
+        Box::new(self.clone())
     }
 }
 
@@ -113,12 +255,16 @@ pub struct Order {
 }
 
 impl SoftConstraint for Order {
-    fn constraint_name(&self) -> &'static str {
+    fn constraint_name(&self) -> &str {
         "Order"
     }
 
     fn to_json(&self) -> Value {
         serialize_with_tag(self.constraint_name(), self)
+    }
+
+    fn clone_box(&self) -> Box<dyn SoftConstraint> {
+        Box::new(self.clone())
     }
 
     fn yield_constraints(&self) -> Vec<Box<dyn SoftConstraint>> {
@@ -146,12 +292,16 @@ pub struct Align {
 }
 
 impl SoftConstraint for Align {
-    fn constraint_name(&self) -> &'static str {
+    fn constraint_name(&self) -> &str {
         "Align"
     }
 
     fn to_json(&self) -> Value {
         serialize_with_tag(self.constraint_name(), self)
+    }
+
+    fn clone_box(&self) -> Box<dyn SoftConstraint> {
+        Box::new(self.clone())
     }
 
     fn yield_constraints(&self) -> Vec<Box<dyn SoftConstraint>> {
@@ -178,12 +328,16 @@ pub struct SymmetricBlocks {
 }
 
 impl SoftConstraint for SymmetricBlocks {
-    fn constraint_name(&self) -> &'static str {
+    fn constraint_name(&self) -> &str {
         "SymmetricBlocks"
     }
 
     fn to_json(&self) -> Value {
         serialize_with_tag(self.constraint_name(), self)
+    }
+
+    fn clone_box(&self) -> Box<dyn SoftConstraint> {
+        Box::new(self.clone())
     }
 
     fn yield_constraints(&self) -> Vec<Box<dyn SoftConstraint>> {
@@ -217,12 +371,16 @@ pub struct AspectRatio {
 }
 
 impl SoftConstraint for AspectRatio {
-    fn constraint_name(&self) -> &'static str {
+    fn constraint_name(&self) -> &str {
         "AspectRatio"
     }
 
     fn to_json(&self) -> Value {
         serialize_with_tag(self.constraint_name(), self)
+    }
+
+    fn clone_box(&self) -> Box<dyn SoftConstraint> {
+        Box::new(self.clone())
     }
 }
 
@@ -246,12 +404,16 @@ pub struct Boundary {
 }
 
 impl SoftConstraint for Boundary {
-    fn constraint_name(&self) -> &'static str {
+    fn constraint_name(&self) -> &str {
         "Boundary"
     }
 
     fn to_json(&self) -> Value {
         serialize_with_tag(self.constraint_name(), self)
+    }
+
+    fn clone_box(&self) -> Box<dyn SoftConstraint> {
+        Box::new(self.clone())
     }
 }
 
@@ -282,12 +444,16 @@ pub struct AlignInOrder {
 }
 
 impl SoftConstraint for AlignInOrder {
-    fn constraint_name(&self) -> &'static str {
+    fn constraint_name(&self) -> &str {
         "AlignInOrder"
     }
 
     fn to_json(&self) -> Value {
         serialize_with_tag(self.constraint_name(), self)
+    }
+
+    fn clone_box(&self) -> Box<dyn SoftConstraint> {
+        Box::new(self.clone())
     }
 
     fn yield_constraints(&self) -> Vec<Box<dyn SoftConstraint>> {
@@ -348,12 +514,16 @@ pub struct Floorplan {
 }
 
 impl SoftConstraint for Floorplan {
-    fn constraint_name(&self) -> &'static str {
+    fn constraint_name(&self) -> &str {
         "Floorplan"
     }
 
     fn to_json(&self) -> Value {
         serialize_with_tag(self.constraint_name(), self)
+    }
+
+    fn clone_box(&self) -> Box<dyn SoftConstraint> {
+        Box::new(self.clone())
     }
 
     fn yield_constraints(&self) -> Vec<Box<dyn SoftConstraint>> {
@@ -430,4 +600,53 @@ impl UserConstraint for Floorplan {
 
         expanded
     }
+}
+
+/// Parses an ALIGN `.const.json` array into boxed [`SoftConstraint`] items.
+pub fn parse_constraints_json(content: &str) -> Result<Vec<Box<dyn SoftConstraint>>> {
+    let items: Vec<Value> = serde_json::from_str(content)?;
+    let mut out: Vec<Box<dyn SoftConstraint>> = Vec::with_capacity(items.len());
+
+    for item in items {
+        let name = item
+            .get("constraint")
+            .and_then(|v| v.as_str())
+            .unwrap_or("Unknown")
+            .to_string();
+
+        let fallback = |name: String, payload: Value| -> Box<dyn SoftConstraint> {
+            Box::new(RawConstraint { name, payload })
+        };
+
+        let boxed: Box<dyn SoftConstraint> = match name.as_str() {
+            "SymmetricNets" => serde_json::from_value::<SymmetricNets>(item.clone())
+                .map(|c| Box::new(c) as Box<dyn SoftConstraint>)
+                .unwrap_or_else(|_| fallback(name, item)),
+            "NetPriority" => serde_json::from_value::<NetPriority>(item.clone())
+                .map(|c| Box::new(c) as Box<dyn SoftConstraint>)
+                .unwrap_or_else(|_| fallback(name, item)),
+            "NetConst" => serde_json::from_value::<NetConst>(item.clone())
+                .map(|c| Box::new(c) as Box<dyn SoftConstraint>)
+                .unwrap_or_else(|_| fallback(name, item)),
+            "CompactPlacement" => serde_json::from_value::<CompactPlacement>(item.clone())
+                .map(|c| Box::new(c) as Box<dyn SoftConstraint>)
+                .unwrap_or_else(|_| fallback(name, item)),
+            "AspectRatio" => serde_json::from_value::<AspectRatio>(item.clone())
+                .map(|c| Box::new(c) as Box<dyn SoftConstraint>)
+                .unwrap_or_else(|_| fallback(name, item)),
+            "PlaceCloser" => serde_json::from_value::<PlaceCloser>(item.clone())
+                .map(|c| Box::new(c) as Box<dyn SoftConstraint>)
+                .unwrap_or_else(|_| fallback(name, item)),
+            "PowerPorts" => serde_json::from_value::<PowerPorts>(item.clone())
+                .map(|c| Box::new(c) as Box<dyn SoftConstraint>)
+                .unwrap_or_else(|_| fallback(name, item)),
+            "GroundPorts" => serde_json::from_value::<GroundPorts>(item.clone())
+                .map(|c| Box::new(c) as Box<dyn SoftConstraint>)
+                .unwrap_or_else(|_| fallback(name, item)),
+            _ => fallback(name, item),
+        };
+        out.push(boxed);
+    }
+
+    Ok(out)
 }

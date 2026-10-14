@@ -3,7 +3,8 @@ pub mod parasitics;
 
 pub use foms::FoMReport;
 pub use parasitics::{
-    calculate_differential_imbalance, rank_net_admittances, total_net_capacitance, NetAdmittance,
+    calculate_differential_imbalance, find_net, rank_net_admittances, total_net_capacitance,
+    NetAdmittance,
 };
 
 use crate::parsers::ngspice_out::SimMeasurements;

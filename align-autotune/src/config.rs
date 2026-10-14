@@ -21,6 +21,8 @@ pub struct AutoTuneConfig {
     pub circuit: String,
     pub netlist_path: PathBuf,
     pub pdk_path: PathBuf,
+    #[serde(default)]
+    pub testbench_path: Option<PathBuf>,
     pub work_dir: PathBuf,
     pub max_iterations: usize,
     pub targets: TargetFoMs,

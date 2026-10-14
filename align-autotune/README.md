@@ -34,12 +34,12 @@ cargo test
 # View CLI flags
 cargo run -- --help
 
-# Run the autotune loop (Sky130 PDK)
+# Run the autotune loop (--pdk defaults to ../pdks/SKY130_PDK)
 # Default reference nets: 0,sub,gnd,vss,vgnd,vsubs,vdd,vpwr (override with --ref-nets <csv>)
 cargo run -- \
   --circuit five_transistor_ota \
   --netlist ../examples/five_transistor_ota/five_transistor_ota.sp \
-  --pdk ../pdks/SKY130_PDK \
+  --testbench ../benchmarks/testbenches/sky130/five_transistor_ota/tb.sp \
   --work-dir ./autotune_work \
   --max-iters 3
 ```

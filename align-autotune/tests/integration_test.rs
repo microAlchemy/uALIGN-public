@@ -1,13 +1,15 @@
 use align_autotune::analysis::{evaluate_foms, rank_net_admittances, AnalysisInputs, FoMReport};
 use align_autotune::config::{default_reference_nets, AutoTuneConfig, TargetFoMs};
-use align_autotune::flow::run_autotune_loop;
+use align_autotune::flow::{discover_diff_pairs, run_autotune_loop};
 use align_autotune::parsers::{
     parse_ngspice_log_str, parse_pex_spice_str, parse_pex_spice_str_with_refs,
     parse_pnr_layout_str, ExtractedCircuit, LayoutGeometry, PexNet, SimMeasurements,
 };
 use align_autotune::remediation::constraints::{
-    AlignInOrder, AspectRatio, HardConstraint, SoftConstraint, SymmetricNets, UserConstraint,
+    parse_constraints_json, AlignInOrder, AspectRatio, HardConstraint, SoftConstraint,
+    SymmetricNets, UserConstraint,
 };
+use align_autotune::remediation::{diagnose_and_remediate, DiagnosisContext};
 use align_autotune::runners::{
     extract_subckt_ports, find_top_gds, normalize_top_subckt_header, stage_design_inputs,
     IterationWorkspace,
@@ -21,7 +23,8 @@ fn test_barebones_flow() {
     let config = AutoTuneConfig {
         circuit: "test_circuit".to_string(),
         netlist_path: PathBuf::from("dummy.sp"),
-        pdk_path: PathBuf::from("pdks/FinFET14nm_Mock_PDK"),
+        pdk_path: PathBuf::from("pdks/SKY130_PDK"),
+        testbench_path: None,
         work_dir: PathBuf::from("/tmp/test_autotune"),
         max_iterations: 1,
         targets: TargetFoMs::default(),
@@ -244,6 +247,66 @@ Total elapsed time (seconds) = 0.127
     assert!((sim.measures["gain_lin"] - 7.53071).abs() < 1e-6);
     assert!((sim.measures["ugbw"] - 6.41105e9).abs() < 1.0);
     assert!(!sim.measures.contains_key("total elapsed time (seconds)"));
+}
+
+#[test]
+fn test_remediation_escalation_and_dedup() {
+    let spice_text = "\
+.subckt five_transistor_ota vss vdd vout in_a in_b id
+X3 vout in_b tail vss sky130_fd_pr__nfet_01v8 l=0.15 w=2.10 nf=2 m=10
+X0 net8 in_a tail vss sky130_fd_pr__nfet_01v8 l=0.15 w=2.10 nf=2 m=10
+C0 IN_B VSS 3.0f
+C1 IN_A VSS 2.0f
+C2 VOUT VSS 12.0f
+C3 VOUT NET8 8.0f
+.ends five_transistor_ota
+";
+    let pex = parse_pex_spice_str(spice_text).unwrap();
+    let initial = parse_constraints_json(
+        r#"[{"constraint": "PowerPorts", "ports": ["VDD"]}, {"constraint": "GroundPorts", "ports": ["VSS"]}]"#,
+    )
+    .unwrap();
+    let refs = default_reference_nets();
+    let diff_pairs = discover_diff_pairs(spice_text, "five_transistor_ota", &initial, &refs);
+    assert_eq!(diff_pairs, vec![("in_b".to_string(), "in_a".to_string())]);
+
+    let report = FoMReport {
+        diff_cap_imbalance_ratio: Some(0.40),
+        bandwidth_retention_ratio: Some(0.65),
+        area_efficiency: Some(0.35),
+    };
+    let targets = TargetFoMs::default();
+
+    // Iteration 0 -> Step 1 remediation: SymmetricNets(VINP, VINN) + NetPriority(VINP, VINN) + NetPriority(VOUT) + NetConst(VOUT)
+    let ctx0 = DiagnosisContext {
+        report: &report,
+        targets: &targets,
+        extracted: Some(&pex),
+        geometry: None,
+        diff_pairs: &diff_pairs,
+        reference_nets: &refs,
+        iteration: 0,
+    };
+    let step1 = diagnose_and_remediate(&ctx0, &initial);
+    assert!(step1.iter().any(|c| c.constraint_name() == "SymmetricNets"));
+    assert!(step1.iter().any(|c| c.constraint_name() == "NetPriority"));
+    assert!(step1.iter().any(|c| c.constraint_name() == "NetConst"));
+
+    // Iteration 1 -> Step 2 escalation: upgrades NetPriority weight and adds CompactPlacement + AspectRatio without duplicates
+    let ctx1 = DiagnosisContext {
+        iteration: 1,
+        ..ctx0
+    };
+    let step2 = diagnose_and_remediate(&ctx1, &step1);
+    let sym_count = step2
+        .iter()
+        .filter(|c| c.constraint_name() == "SymmetricNets")
+        .count();
+    assert_eq!(sym_count, 1);
+    assert!(step2
+        .iter()
+        .any(|c| c.constraint_name() == "CompactPlacement"));
+    assert!(step2.iter().any(|c| c.constraint_name() == "AspectRatio"));
 }
 
 fn args_or_path(p: &std::path::Path) -> PathBuf {

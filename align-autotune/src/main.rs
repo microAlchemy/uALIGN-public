@@ -18,8 +18,20 @@ struct Args {
     #[arg(short, long, help = "Path to SPICE netlist")]
     netlist: PathBuf,
 
-    #[arg(short, long, help = "Path to PDK directory")]
+    #[arg(
+        short,
+        long,
+        default_value = "../pdks/SKY130_PDK",
+        help = "Path to PDK directory (defaults to SKY130_PDK)"
+    )]
     pdk: PathBuf,
+
+    #[arg(
+        short,
+        long,
+        help = "Optional path to SPICE testbench (tb.sp); auto-discovered if omitted"
+    )]
+    testbench: Option<PathBuf>,
 
     #[arg(
         short,
@@ -48,6 +60,7 @@ fn main() -> Result<()> {
         circuit: args.circuit,
         netlist_path: args.netlist,
         pdk_path: args.pdk,
+        testbench_path: args.testbench,
         work_dir: args.work_dir,
         max_iterations: args.max_iters,
         targets: TargetFoMs::default(),
