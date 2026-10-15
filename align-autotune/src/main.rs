@@ -69,7 +69,7 @@ fn main() -> Result<()> {
 
     println!("Starting ALIGN autotune for circuit: {}", config.circuit);
     let summary = run_autotune_loop(&config)?;
-    println!("Autotune completed: {:?}", summary);
+    println!("Autotune completed: {summary}");
 
     Ok(())
 }

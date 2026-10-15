@@ -38,7 +38,7 @@ cargo run -- --help
 # Default reference nets: 0,sub,gnd,vss,vgnd,vsubs,vdd,vpwr (override with --ref-nets <csv>)
 cargo run -- \
   --circuit five_transistor_ota \
-  --netlist ../examples/five_transistor_ota/five_transistor_ota.sp \
+  --netlist ../../uALIGN-pdk-sky130/examples/five_transistor_ota/five_transistor_ota.sp \
   --testbench ../benchmarks/testbenches/sky130/five_transistor_ota/tb.sp \
   --work-dir ./autotune_work \
   --max-iters 3

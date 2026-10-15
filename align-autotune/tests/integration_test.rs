@@ -277,7 +277,7 @@ C3 VOUT NET8 8.0f
     };
     let targets = TargetFoMs::default();
 
-    // Iteration 0 -> Step 1 remediation: SymmetricNets(VINP, VINN) + NetPriority(VINP, VINN) + NetPriority(VOUT) + NetConst(VOUT)
+    // Iteration 0 -> Step 1 remediation: NetPriority(IN_B, IN_A) + NetConst(IN_B, IN_A) + NetPriority(VOUT) + NetConst(VOUT)
     let ctx0 = DiagnosisContext {
         report: &report,
         targets: &targets,
@@ -288,11 +288,10 @@ C3 VOUT NET8 8.0f
         iteration: 0,
     };
     let step1 = diagnose_and_remediate(&ctx0, &initial);
-    assert!(step1.iter().any(|c| c.constraint_name() == "SymmetricNets"));
     assert!(step1.iter().any(|c| c.constraint_name() == "NetPriority"));
     assert!(step1.iter().any(|c| c.constraint_name() == "NetConst"));
 
-    // Iteration 1 -> Step 2 escalation: upgrades NetPriority weight and adds CompactPlacement + AspectRatio without duplicates
+    // Iteration 1 -> Step 2 escalation: adds SymmetricNets, upgrades NetPriority weight, and adds CompactPlacement + AspectRatio
     let ctx1 = DiagnosisContext {
         iteration: 1,
         ..ctx0

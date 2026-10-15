@@ -1,5 +1,6 @@
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
+use std::fmt;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -21,6 +22,16 @@ pub struct AutoTuneSummary {
     pub total_iterations: usize,
     pub converged: bool,
     pub final_foms: FoMReport,
+}
+
+impl fmt::Display for AutoTuneSummary {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "iterations={}, converged={}, {}",
+            self.total_iterations, self.converged, self.final_foms
+        )
+    }
 }
 
 /// Runs the closed-loop ALIGN -> Magic PEX -> ngspice -> Remediation tuning flow.
@@ -120,19 +131,17 @@ pub fn run_autotune_loop(config: &AutoTuneConfig) -> Result<AutoTuneSummary> {
         });
 
         println!(
-            "[iter {}] diff_cap_imbalance={:?}, bw_retention={:?}, area_efficiency={:?} ({} constraints)",
+            "[iter {}] {} ({} constraints)",
             iter,
-            report.diff_cap_imbalance_ratio,
-            report.bandwidth_retention_ratio,
-            report.area_efficiency,
+            report,
             current_constraints.len()
         );
 
         if iter == 0 || report.is_better_than(&best_report, &config.targets) {
             best_report = report.clone();
             best_constraints = current_constraints.clone();
-        } else {
-            // Roll back to the best-performing constraint set before escalating
+        } else if best_report.is_better_than(&report, &config.targets) {
+            // Roll back to the best-performing constraint set only when the new layout regressed
             current_constraints = best_constraints.clone();
         }
 
@@ -252,9 +261,10 @@ pub fn discover_diff_pairs(
                 continue;
             }
 
-            // Must share common source (tail) and bulk, with distinct non-diode gates and drains
+            // Must share common non-reference source (tail) and bulk, with distinct non-diode gates and drains
             if !m1.source.eq_ignore_ascii_case(&m2.source)
                 || !m1.bulk.eq_ignore_ascii_case(&m2.bulk)
+                || is_ref_net(&m1.source, reference_nets)
             {
                 continue;
             }

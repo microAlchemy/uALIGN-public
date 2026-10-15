@@ -62,7 +62,9 @@ impl AlignRunner {
             .parent()
             .context("Netlist file has no parent directory")?;
 
-        let mut cmd = if self.executable.ends_with(".py") && !command_on_path(&self.executable) {
+        let mut cmd = if self.executable.ends_with(".py")
+            && Path::new(&self.executable).components().count() > 1
+        {
             let py = discover_align_python();
             let mut c = Command::new(py);
             c.arg(&self.executable);

@@ -70,7 +70,7 @@ pub fn parse_pnr_layout_str(content: &str) -> Result<LayoutGeometry> {
             total_wirelength_um += w_um.max(h_um);
         } else if is_via_layer(layer) {
             total_vias += 1;
-        } else if layer.eq_ignore_ascii_case("Active") || layer.eq_ignore_ascii_case("Tap") {
+        } else if layer.eq_ignore_ascii_case("Active") {
             active_diffusion_area_um2 += area_um2;
         } else if layer.eq_ignore_ascii_case("Boundary") && (area_um2 - bbox_area_um2).abs() > 1e-6
         {

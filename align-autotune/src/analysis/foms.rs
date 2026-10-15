@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use std::fmt;
 
 use crate::analysis::parasitics::calculate_differential_imbalance;
 use crate::config::TargetFoMs;
@@ -11,6 +12,7 @@ pub struct FoMReport {
     pub diff_cap_imbalance_ratio: Option<f64>,
     pub bandwidth_retention_ratio: Option<f64>,
     pub area_efficiency: Option<f64>,
+    // TODO: make this more scalable for arbitary new foms
 }
 
 impl FoMReport {
@@ -71,6 +73,12 @@ impl FoMReport {
         if !other.has_measurements() {
             return true;
         }
+        if (other.diff_cap_imbalance_ratio.is_some() && self.diff_cap_imbalance_ratio.is_none())
+            || (other.bandwidth_retention_ratio.is_some()
+                && self.bandwidth_retention_ratio.is_none())
+        {
+            return false;
+        }
 
         let self_score = self.violation_score(targets);
         let other_score = other.violation_score(targets);
@@ -81,6 +89,30 @@ impl FoMReport {
             self.area_efficiency.unwrap_or(0.0) > other.area_efficiency.unwrap_or(0.0)
         }
     }
+}
+
+impl fmt::Display for FoMReport {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "diff_cap_imbalance={}, bw_retention={}, area_efficiency={}",
+            fmt_sig_figs(self.diff_cap_imbalance_ratio, 3),
+            fmt_sig_figs(self.bandwidth_retention_ratio, 3),
+            fmt_sig_figs(self.area_efficiency, 3),
+        )
+    }
+}
+
+fn fmt_sig_figs(val: Option<f64>, sig_figs: usize) -> String {
+    let Some(x) = val else {
+        return "N/A".to_string();
+    };
+    if x == 0.0 || !x.is_finite() {
+        return format!("{x:.3}");
+    }
+    let exp = x.abs().log10().floor() as i32;
+    let decimals = (sig_figs as i32 - 1 - exp).max(0) as usize;
+    format!("{x:.decimals$}")
 }
 
 /// Inputs collected from a single layout + PEX + simulation iteration.
@@ -97,7 +129,7 @@ pub fn evaluate_foms(inputs: &AnalysisInputs<'_>) -> FoMReport {
     let diff_cap_imbalance_ratio =
         compute_worst_diff_imbalance(inputs.extracted, inputs.diff_pairs, inputs.post_sim);
 
-    let bandwidth_retention_ratio = compute_bandwidth_retention(inputs.pre_sim, inputs.post_sim);
+    let bandwidth_retention_ratio: Option<f64> = compute_bandwidth_retention(inputs.pre_sim, inputs.post_sim);
 
     let area_efficiency = inputs.geometry.and_then(|geom| {
         let bbox_area = geom.width_um * geom.height_um;
@@ -140,12 +172,42 @@ fn compute_bandwidth_retention(
     pre_sim: Option<&SimMeasurements>,
     post_sim: Option<&SimMeasurements>,
 ) -> Option<f64> {
-    let ugbw_pre = *pre_sim?.measures.get("ugbw")?;
-    let ugbw_post = *post_sim?.measures.get("ugbw")?;
+    let pre = &pre_sim?.measures;
+    let post = &post_sim?.measures;
 
-    if ugbw_pre > 0.0 {
-        Some(ugbw_post / ugbw_pre)
-    } else {
-        None
+    let ugbw_pre =
+        get_measure_ci(pre, "ugbw").or_else(|| get_measure_ci(pre, "ugbw_mhz").map(|v| v * 1e6));
+    let ugbw_post =
+        get_measure_ci(post, "ugbw").or_else(|| get_measure_ci(post, "ugbw_mhz").map(|v| v * 1e6));
+
+    if let (Some(u_pre), Some(u_post)) = (ugbw_pre, ugbw_post) {
+        if u_pre > 0.0 {
+            return Some(u_post / u_pre);
+        }
     }
+
+    // Fallback for transient testbenches (e.g. buffer) measuring propagation delay (tphl_ns, tplh_ns)
+    if let (Some(hl_pre), Some(lh_pre), Some(hl_post), Some(lh_post)) = (
+        get_measure_ci(pre, "tphl_ns"),
+        get_measure_ci(pre, "tplh_ns"),
+        get_measure_ci(post, "tphl_ns"),
+        get_measure_ci(post, "tplh_ns"),
+    ) {
+        let delay_pre = hl_pre + lh_pre;
+        let delay_post = hl_post + lh_post;
+        if delay_pre > 0.0 && delay_post > 0.0 {
+            return Some(delay_pre / delay_post);
+        }
+    }
+
+    None
+}
+
+fn get_measure_ci(measures: &std::collections::HashMap<String, f64>, key: &str) -> Option<f64> {
+    measures.get(key).copied().or_else(|| {
+        measures
+            .iter()
+            .find(|(k, _)| k.eq_ignore_ascii_case(key))
+            .map(|(_, &v)| v)
+    })
 }

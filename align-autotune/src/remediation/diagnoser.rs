@@ -27,16 +27,11 @@ pub fn diagnose_and_remediate(
     current_constraints: &[Box<dyn SoftConstraint>],
 ) -> Vec<Box<dyn SoftConstraint>> {
     let mut proposals: Vec<Box<dyn SoftConstraint>> = Vec::new();
-    let shield_net = select_shield_net(current_constraints, ctx.reference_nets);
+    let shield_net = select_shield_net(current_constraints, ctx.reference_nets, ctx.extracted);
 
     if let Some(imbalance) = ctx.report.diff_cap_imbalance_ratio {
         if imbalance > ctx.targets.max_diff_cap_imbalance {
-            remediate_diff_imbalance(
-                ctx,
-                current_constraints,
-                shield_net.as_deref(),
-                &mut proposals,
-            );
+            remediate_diff_imbalance(ctx, shield_net.as_deref(), &mut proposals);
         }
     }
 
@@ -56,7 +51,6 @@ pub fn diagnose_and_remediate(
 
 fn remediate_diff_imbalance(
     ctx: &DiagnosisContext<'_>,
-    current_constraints: &[Box<dyn SoftConstraint>],
     shield_net: Option<&str>,
     proposals: &mut Vec<Box<dyn SoftConstraint>>,
 ) {
@@ -75,8 +69,19 @@ fn remediate_diff_imbalance(
         let p_up = net_p.to_ascii_uppercase();
         let n_up = net_n.to_ascii_uppercase();
 
-        if !has_symmetric_nets(current_constraints, &p_up, &n_up) {
-            // Escalation Step 1: Enforce net-level routing symmetry and elevate HPWL placement weight
+        if ctx.iteration == 0 {
+            // Escalation Step 1: Elevate HPWL placement weight and enable router shielding on the differential pair
+            proposals.push(Box::new(NetPriority {
+                nets: vec![p_up.clone(), n_up.clone()],
+                weight: 10,
+            }));
+            proposals.push(Box::new(NetConst {
+                nets: vec![p_up, n_up],
+                shield: shield_net.map(|s| s.to_string()),
+                criticality: Some(10),
+            }));
+        } else {
+            // Escalation Step 2: Enforce explicit SymmetricNets and escalate weight/criticality
             proposals.push(Box::new(SymmetricNets {
                 direction: "V".to_string(),
                 net1: p_up.clone(),
@@ -84,12 +89,6 @@ fn remediate_diff_imbalance(
                 pins1: None,
                 pins2: None,
             }));
-            proposals.push(Box::new(NetPriority {
-                nets: vec![p_up, n_up],
-                weight: 10,
-            }));
-        } else {
-            // Escalation Step 2: SymmetricNets already active; add router shielding & higher criticality
             proposals.push(Box::new(NetPriority {
                 nets: vec![p_up.clone(), n_up.clone()],
                 weight: 20,
@@ -145,7 +144,7 @@ fn remediate_bandwidth_loss(
                 })
                 .unwrap_or(0.0);
 
-            if !has_net_priority(current_constraints, &net_up) {
+            if ctx.iteration == 0 && !has_net_priority(current_constraints, &net_up) {
                 // Step 1: Penalize HPWL on the dominant parasitic net
                 proposals.push(Box::new(NetPriority {
                     nets: vec![net_up.clone()],
@@ -173,11 +172,7 @@ fn remediate_bandwidth_loss(
                 proposals.push(Box::new(CompactPlacement {
                     style: "center".to_string(),
                 }));
-                proposals.push(Box::new(AspectRatio {
-                    ratio_low: 0.75,
-                    ratio_high: 1.33,
-                    weight: Some(10),
-                }));
+                proposals.push(Box::new(feasible_aspect_ratio(ctx.geometry)));
                 added_net_remediation = true;
             }
         }
@@ -187,11 +182,29 @@ fn remediate_bandwidth_loss(
         proposals.push(Box::new(CompactPlacement {
             style: "center".to_string(),
         }));
-        proposals.push(Box::new(AspectRatio {
-            ratio_low: 0.75,
-            ratio_high: 1.33,
-            weight: Some(10),
-        }));
+        proposals.push(Box::new(feasible_aspect_ratio(ctx.geometry)));
+    }
+}
+
+/// Contracts the current bounding-box aspect ratio `r = W / H` halfway toward `1.0` (square)
+/// in log-space: `[sqrt(s), 1 / sqrt(s)]` where `s = min(W/H, H/W)`.
+fn feasible_aspect_ratio(geometry: Option<&LayoutGeometry>) -> AspectRatio {
+    let s = geometry
+        .filter(|g| g.width_um > 0.0 && g.height_um > 0.0)
+        .map(|g| {
+            let r = g.width_um / g.height_um;
+            r.min(1.0 / r)
+        })
+        .unwrap_or(0.5);
+
+    let root = s.sqrt();
+    let low = (root * 100.0).round() / 100.0;
+    let high = ((1.0 / root) * 100.0).round() / 100.0;
+
+    AspectRatio {
+        ratio_low: low,
+        ratio_high: high.max(low + 0.01),
+        weight: Some(10),
     }
 }
 
@@ -255,19 +268,6 @@ pub fn merge_and_dedup_constraints(
     merged
 }
 
-fn has_symmetric_nets(constraints: &[Box<dyn SoftConstraint>], net1: &str, net2: &str) -> bool {
-    constraints.iter().any(|c| {
-        if c.constraint_name() != "SymmetricNets" {
-            return false;
-        }
-        let v = c.to_json();
-        let n1 = v.get("net1").and_then(|x| x.as_str()).unwrap_or("");
-        let n2 = v.get("net2").and_then(|x| x.as_str()).unwrap_or("");
-        (n1.eq_ignore_ascii_case(net1) && n2.eq_ignore_ascii_case(net2))
-            || (n1.eq_ignore_ascii_case(net2) && n2.eq_ignore_ascii_case(net1))
-    })
-}
-
 fn has_net_priority(constraints: &[Box<dyn SoftConstraint>], net: &str) -> bool {
     constraints.iter().any(|c| {
         if c.constraint_name() != "NetPriority" {
@@ -288,7 +288,10 @@ fn is_ref_or_diff_net(
     reference_nets: &[String],
     diff_pairs: &[(String, String)],
 ) -> bool {
-    if net.eq_ignore_ascii_case("0") || reference_nets.iter().any(|r| r.eq_ignore_ascii_case(net)) {
+    if net.contains('#')
+        || net.eq_ignore_ascii_case("0")
+        || reference_nets.iter().any(|r| r.eq_ignore_ascii_case(net))
+    {
         return true;
     }
     diff_pairs
@@ -299,6 +302,7 @@ fn is_ref_or_diff_net(
 fn select_shield_net(
     constraints: &[Box<dyn SoftConstraint>],
     reference_nets: &[String],
+    extracted: Option<&ExtractedCircuit>,
 ) -> Option<String> {
     for c in constraints {
         if c.constraint_name() == "GroundPorts" {
@@ -317,6 +321,7 @@ fn select_shield_net(
         if reference_nets
             .iter()
             .any(|r| r.eq_ignore_ascii_case(candidate))
+            && extracted.is_some_and(|ext| find_net(ext, candidate).is_some())
         {
             return Some(candidate.to_ascii_uppercase());
         }

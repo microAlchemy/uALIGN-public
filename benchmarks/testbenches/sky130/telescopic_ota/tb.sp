@@ -44,7 +44,7 @@
 Vdd vdd 0 1.8
 
 * bias voltages
-Vbias_id xota.id 0 dc 0.658
+Ibias vdd id dc 10u
 Vbiasn vbiasn 0 1.0
 Vbiasp1 vbiasp1 0 0.8
 Vbiasp2 vbiasp2 0 1.0
@@ -54,7 +54,7 @@ Vinn vinn 0 0.9
 Vinp vinp 0 0.9 AC 1
 
 * DUT
-Xota vbiasn vbiasp1 vbiasp2 vinn vinp voutn voutp vdd 0 telescopic_ota
+Xota id vbiasn vbiasp1 vbiasp2 vinn vinp voutn voutp vdd 0 telescopic_ota
 
 .ac dec 20 1k 10g
 .print ac vdb(voutn)
