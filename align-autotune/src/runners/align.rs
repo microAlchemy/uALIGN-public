@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use crate::remediation::constraints::SoftConstraint;
-use crate::runners::{execute_logged, ToolRunner};
+use crate::runners::{command_on_path, execute_logged, ToolRunner};
 
 #[derive(Debug, Clone)]
 pub struct AlignResult {
@@ -24,8 +24,8 @@ pub struct AlignRunner {
 impl Default for AlignRunner {
     fn default() -> Self {
         Self {
-            executable: "schematic2layout.py".to_string(),
-            extra_lib_dirs: Vec::new(),
+            executable: discover_align_executable(),
+            extra_lib_dirs: discover_align_lib_dirs(),
         }
     }
 }
@@ -62,7 +62,14 @@ impl AlignRunner {
             .parent()
             .context("Netlist file has no parent directory")?;
 
-        let mut cmd = Command::new(&self.executable);
+        let mut cmd = if self.executable.ends_with(".py") && !command_on_path(&self.executable) {
+            let py = discover_align_python();
+            let mut c = Command::new(py);
+            c.arg(&self.executable);
+            c
+        } else {
+            Command::new(&self.executable)
+        };
         cmd.current_dir(&work_abs)
             .arg(design_dir)
             .arg("-f")
@@ -71,6 +78,12 @@ impl AlignRunner {
             .arg(circuit)
             .arg("-p")
             .arg(&pdk_abs);
+
+        if let Some(repo_root) = discover_repo_root() {
+            if env::var_os("PYTHONPATH").is_none() {
+                cmd.env("PYTHONPATH", &repo_root);
+            }
+        }
 
         if !self.extra_lib_dirs.is_empty() {
             let joined = env::join_paths(&self.extra_lib_dirs)?;
@@ -168,7 +181,10 @@ pub fn find_pnr_json(work_dir: &Path, circuit: &str) -> Result<PathBuf> {
         for entry in fs::read_dir(&pnr_dir)? {
             let path = entry?.path();
             if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
-                if name.ends_with("_0.json") && !name.ends_with(".elford.json") {
+                if name.ends_with("_0.json")
+                    && !name.ends_with(".elford.json")
+                    && !name.ends_with(".verilog.json")
+                {
                     return Ok(path);
                 }
             }
@@ -188,4 +204,66 @@ pub fn run_align(
     work_dir: &Path,
 ) -> Result<AlignResult> {
     AlignRunner::default().run(circuit, netlist, pdk_path, work_dir)
+}
+
+fn discover_repo_root() -> Option<PathBuf> {
+    let cwd = env::current_dir().ok()?;
+    for ancestor in cwd.ancestors() {
+        if ancestor.join("bin/schematic2layout.py").is_file() {
+            return Some(ancestor.to_path_buf());
+        }
+    }
+    None
+}
+
+fn discover_align_executable() -> String {
+    if command_on_path("schematic2layout.py") {
+        return "schematic2layout.py".to_string();
+    }
+    if let Some(root) = discover_repo_root() {
+        let script = root.join("bin/schematic2layout.py");
+        if script.is_file() {
+            return script.display().to_string();
+        }
+    }
+    "schematic2layout.py".to_string()
+}
+
+fn discover_align_python() -> String {
+    if let Ok(py) = env::var("ALIGN_PYTHON") {
+        return py;
+    }
+    if let Ok(venv) = env::var("VIRTUAL_ENV") {
+        let py = Path::new(&venv).join("bin/python3");
+        if py.is_file() {
+            return py.display().to_string();
+        }
+    }
+    if let Some(root) = discover_repo_root() {
+        if let Some(parent) = root.parent() {
+            let sibling_venv = parent.join("general/bin/python3");
+            if sibling_venv.is_file() {
+                return sibling_venv.display().to_string();
+            }
+        }
+    }
+    "python3".to_string()
+}
+
+fn discover_align_lib_dirs() -> Vec<PathBuf> {
+    let mut dirs = Vec::new();
+    let Some(root) = discover_repo_root() else {
+        return dirs;
+    };
+    let skbuild = root.join("_skbuild");
+    if let Ok(entries) = fs::read_dir(&skbuild) {
+        for entry in entries.flatten() {
+            let thirdparty = entry.path().join("cmake-install/align/thirdparty");
+            if thirdparty.is_dir() {
+                dirs.push(thirdparty);
+            }
+        }
+    }
+    dirs.push(root);
+    dirs
 }

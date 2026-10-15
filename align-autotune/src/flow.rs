@@ -119,6 +119,15 @@ pub fn run_autotune_loop(config: &AutoTuneConfig) -> Result<AutoTuneSummary> {
             post_sim: post_sim.as_ref(),
         });
 
+        println!(
+            "[iter {}] diff_cap_imbalance={:?}, bw_retention={:?}, area_efficiency={:?} ({} constraints)",
+            iter,
+            report.diff_cap_imbalance_ratio,
+            report.bandwidth_retention_ratio,
+            report.area_efficiency,
+            current_constraints.len()
+        );
+
         if iter == 0 || report.is_better_than(&best_report, &config.targets) {
             best_report = report.clone();
             best_constraints = current_constraints.clone();
@@ -128,6 +137,7 @@ pub fn run_autotune_loop(config: &AutoTuneConfig) -> Result<AutoTuneSummary> {
         }
 
         if report.meets_targets(&config.targets) {
+            save_best_constraints(config, &best_constraints)?;
             return Ok(AutoTuneSummary {
                 total_iterations,
                 converged: true,
@@ -149,11 +159,29 @@ pub fn run_autotune_loop(config: &AutoTuneConfig) -> Result<AutoTuneSummary> {
         }
     }
 
+    save_best_constraints(config, &best_constraints)?;
+
     Ok(AutoTuneSummary {
         total_iterations,
         converged: best_report.meets_targets(&config.targets),
         final_foms: best_report,
     })
+}
+
+fn save_best_constraints(
+    config: &AutoTuneConfig,
+    constraints: &[Box<dyn SoftConstraint>],
+) -> Result<()> {
+    if constraints.is_empty() {
+        return Ok(());
+    }
+    fs::create_dir_all(&config.work_dir)?;
+    let out_path = config
+        .work_dir
+        .join(format!("{}.const.json", config.circuit));
+    let json_list: Vec<serde_json::Value> = constraints.iter().map(|c| c.to_json()).collect();
+    fs::write(&out_path, serde_json::to_string_pretty(&json_list)?)?;
+    Ok(())
 }
 
 fn load_initial_constraints(config: &AutoTuneConfig) -> Result<Vec<Box<dyn SoftConstraint>>> {
