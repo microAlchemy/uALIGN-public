@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use anyhow::Result;
 use clap::Parser;
 
-use align_autotune::config::{default_reference_nets, AutoTuneConfig, TargetFoMs};
+use align_autotune::config::{default_reference_nets, AutoTuneConfig};
 use align_autotune::flow::run_autotune_loop;
 
 #[derive(Parser, Debug)]
@@ -63,7 +63,6 @@ fn main() -> Result<()> {
         testbench_path: args.testbench,
         work_dir: args.work_dir,
         max_iterations: args.max_iters,
-        targets: TargetFoMs::default(),
         reference_nets: args.ref_nets,
     };
 

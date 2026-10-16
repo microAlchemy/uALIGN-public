@@ -1,5 +1,7 @@
-use align_autotune::analysis::{evaluate_foms, rank_net_admittances, AnalysisInputs, FoMReport};
-use align_autotune::config::{default_reference_nets, AutoTuneConfig, TargetFoMs};
+use align_autotune::analysis::{
+    evaluate_foms, rank_net_admittances, AnalysisInputs, FoM, FoMReport,
+};
+use align_autotune::config::{default_reference_nets, AutoTuneConfig};
 use align_autotune::flow::{discover_diff_pairs, run_autotune_loop};
 use align_autotune::parsers::{
     parse_ngspice_log_str, parse_pex_spice_str, parse_pex_spice_str_with_refs,
@@ -27,7 +29,6 @@ fn test_barebones_flow() {
         testbench_path: None,
         work_dir: PathBuf::from("/tmp/test_autotune"),
         max_iterations: 1,
-        targets: TargetFoMs::default(),
         reference_nets: default_reference_nets(),
     };
 
@@ -37,22 +38,47 @@ fn test_barebones_flow() {
 
 #[test]
 fn test_fom_satisfactory() {
-    let targets = TargetFoMs::default();
-    assert!(!FoMReport::default().meets_targets(&targets));
+    assert!(!FoMReport::default().is_satisfactory());
 
     let report = FoMReport {
-        diff_cap_imbalance_ratio: Some(0.015),
-        bandwidth_retention_ratio: Some(0.90),
-        area_efficiency: Some(0.45),
+        foms: vec![
+            FoM {
+                name: "diff_cap_imbalance_ratio".to_string(),
+                value: Some(0.015),
+                ngspice_required: false,
+                target: 0.02,
+                is_satisfied: true,
+            },
+            FoM {
+                name: "bandwidth_retention_ratio".to_string(),
+                value: Some(0.90),
+                ngspice_required: true,
+                target: 0.80,
+                is_satisfied: true,
+            },
+        ],
     };
-    assert!(report.meets_targets(&targets));
+    assert!(report.is_satisfactory());
 
     let worse_report = FoMReport {
-        diff_cap_imbalance_ratio: Some(0.05),
-        bandwidth_retention_ratio: Some(0.80),
-        area_efficiency: Some(0.50),
+        foms: vec![
+            FoM {
+                name: "diff_cap_imbalance_ratio".to_string(),
+                value: Some(0.05),
+                ngspice_required: false,
+                target: 0.02,
+                is_satisfied: false,
+            },
+            FoM {
+                name: "bandwidth_retention_ratio".to_string(),
+                value: Some(0.75),
+                ngspice_required: true,
+                target: 0.80,
+                is_satisfied: false,
+            },
+        ],
     };
-    assert!(report.is_better_than(&worse_report, &targets));
+    assert!(report.is_better_than(&worse_report));
 }
 
 #[test]
@@ -95,6 +121,8 @@ fn test_evaluate_foms() {
         width_um: 10.0,
         height_um: 10.0,
         active_area_um2: 42.0,
+        block_area_um2: 72.0,
+        core_area_um2: 100.0,
         total_wirelength_um: 120.0,
         total_vias: 16,
     };
@@ -139,10 +167,11 @@ fn test_evaluate_foms() {
         post_sim: Some(&post_sim),
     });
 
-    assert!((report.diff_cap_imbalance_ratio.unwrap() - 0.01).abs() < 1e-9);
-    assert!((report.bandwidth_retention_ratio.unwrap() - 0.90).abs() < 1e-9);
-    assert!((report.area_efficiency.unwrap() - 0.42).abs() < 1e-9);
-    assert!(report.is_satisfactory(0.02, 0.85));
+    assert!((report.get("diff_cap_imbalance_ratio").unwrap() - 0.01).abs() < 1e-9);
+    assert!((report.get("bandwidth_retention_ratio").unwrap() - 0.90).abs() < 1e-9);
+    assert!((report.get("area_efficiency").unwrap() - 0.42).abs() < 1e-9);
+    assert!((report.get("block_packing_efficiency").unwrap() - 0.72).abs() < 1e-9);
+    assert!(report.is_satisfactory());
 
     let ranked = rank_net_admittances(&extracted);
     assert_eq!(ranked.len(), 2);
@@ -271,16 +300,26 @@ C3 VOUT NET8 8.0f
     assert_eq!(diff_pairs, vec![("in_b".to_string(), "in_a".to_string())]);
 
     let report = FoMReport {
-        diff_cap_imbalance_ratio: Some(0.40),
-        bandwidth_retention_ratio: Some(0.65),
-        area_efficiency: Some(0.35),
+        foms: vec![
+            FoM {
+                name: "diff_cap_imbalance_ratio".to_string(),
+                value: Some(0.40),
+                ngspice_required: false,
+                target: 0.02,
+                is_satisfied: false,
+            },
+            FoM {
+                name: "bandwidth_retention_ratio".to_string(),
+                value: Some(0.65),
+                ngspice_required: true,
+                target: 0.80,
+                is_satisfied: false,
+            },
+        ],
     };
-    let targets = TargetFoMs::default();
-
     // Iteration 0 -> Step 1 remediation: NetPriority(IN_B, IN_A) + NetConst(IN_B, IN_A) + NetPriority(VOUT) + NetConst(VOUT)
     let ctx0 = DiagnosisContext {
         report: &report,
-        targets: &targets,
         extracted: Some(&pex),
         geometry: None,
         diff_pairs: &diff_pairs,

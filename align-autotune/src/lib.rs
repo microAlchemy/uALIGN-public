@@ -9,10 +9,12 @@ pub mod runners;
 
 // Top-level re-exports for convenient library consumers and integration tests
 pub use analysis::{
-    calculate_differential_imbalance, evaluate_foms, find_net, rank_net_admittances,
-    total_net_capacitance, AnalysisInputs, FoMReport, NetAdmittance,
+    calculate_differential_imbalance, evaluate_foms, find_net, net_capacitance_excluding,
+    rank_net_admittances, total_net_capacitance, AnalysisInputs, AreaEfficiency,
+    BandwidthRetentionRatio, BlockPackingEfficiency, DiffCapImbalanceRatio, FigureOfMerit, FoM,
+    FoMReport, NetAdmittance, LIST_OF_FOMS,
 };
-pub use config::{default_reference_nets, AutoTuneConfig, TargetFoMs, DEFAULT_REFERENCE_NETS};
+pub use config::{default_reference_nets, AutoTuneConfig, DEFAULT_REFERENCE_NETS};
 pub use flow::{discover_diff_pairs, discover_testbench, run_autotune_loop, AutoTuneSummary};
 pub use parsers::{
     parse_ngspice_log, parse_ngspice_log_str, parse_pex_spice, parse_pex_spice_str,

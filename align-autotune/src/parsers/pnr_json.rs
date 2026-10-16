@@ -8,6 +8,8 @@ pub struct LayoutGeometry {
     pub width_um: f64,
     pub height_um: f64,
     pub active_area_um2: f64,
+    pub block_area_um2: f64,
+    pub core_area_um2: f64,
     pub total_wirelength_um: f64,
     pub total_vias: usize,
 }
@@ -53,6 +55,11 @@ pub fn parse_pnr_layout_str(content: &str) -> Result<LayoutGeometry> {
     let mut total_wirelength_um = 0.0;
     let mut total_vias = 0usize;
 
+    let mut core_min_x = f64::INFINITY;
+    let mut core_min_y = f64::INFINITY;
+    let mut core_max_x = f64::NEG_INFINITY;
+    let mut core_max_y = f64::NEG_INFINITY;
+
     let bbox_area_um2 = width_um * height_um;
 
     for term in &parsed.terminals {
@@ -72,11 +79,23 @@ pub fn parse_pnr_layout_str(content: &str) -> Result<LayoutGeometry> {
             total_vias += 1;
         } else if layer.eq_ignore_ascii_case("Active") {
             active_diffusion_area_um2 += area_um2;
+            core_min_x = core_min_x.min(x0.min(x1));
+            core_min_y = core_min_y.min(y0.min(y1));
+            core_max_x = core_max_x.max(x0.max(x1));
+            core_max_y = core_max_y.max(y0.max(y1));
         } else if layer.eq_ignore_ascii_case("Boundary") && (area_um2 - bbox_area_um2).abs() > 1e-6
         {
             subblock_boundary_area_um2 += area_um2;
+            core_min_x = core_min_x.min(x0.min(x1));
+            core_min_y = core_min_y.min(y0.min(y1));
+            core_max_x = core_max_x.max(x0.max(x1));
+            core_max_y = core_max_y.max(y0.max(y1));
         } else if layer.eq_ignore_ascii_case("Nselect") || layer.eq_ignore_ascii_case("Pselect") {
             implant_area_um2 += area_um2;
+            core_min_x = core_min_x.min(x0.min(x1));
+            core_min_y = core_min_y.min(y0.min(y1));
+            core_max_x = core_max_x.max(x0.max(x1));
+            core_max_y = core_max_y.max(y0.max(y1));
         }
     }
 
@@ -88,10 +107,26 @@ pub fn parse_pnr_layout_str(content: &str) -> Result<LayoutGeometry> {
         implant_area_um2
     };
 
+    let block_area_um2 = if subblock_boundary_area_um2 > 0.0 {
+        subblock_boundary_area_um2
+    } else if implant_area_um2 > 0.0 {
+        implant_area_um2
+    } else {
+        active_area_um2
+    };
+
+    let core_area_um2 = if core_max_x > core_min_x && core_max_y > core_min_y {
+        ((core_max_x - core_min_x) / 1000.0) * ((core_max_y - core_min_y) / 1000.0)
+    } else {
+        bbox_area_um2
+    };
+
     Ok(LayoutGeometry {
         width_um,
         height_um,
         active_area_um2,
+        block_area_um2,
+        core_area_um2,
         total_wirelength_um,
         total_vias,
     })

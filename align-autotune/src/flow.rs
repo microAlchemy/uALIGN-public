@@ -137,15 +137,15 @@ pub fn run_autotune_loop(config: &AutoTuneConfig) -> Result<AutoTuneSummary> {
             current_constraints.len()
         );
 
-        if iter == 0 || report.is_better_than(&best_report, &config.targets) {
+        if iter == 0 || report.is_better_than(&best_report) {
             best_report = report.clone();
             best_constraints = current_constraints.clone();
-        } else if best_report.is_better_than(&report, &config.targets) {
+        } else if best_report.is_better_than(&report) {
             // Roll back to the best-performing constraint set only when the new layout regressed
             current_constraints = best_constraints.clone();
         }
 
-        if report.meets_targets(&config.targets) {
+        if report.is_satisfactory() {
             save_best_constraints(config, &best_constraints)?;
             return Ok(AutoTuneSummary {
                 total_iterations,
@@ -157,7 +157,6 @@ pub fn run_autotune_loop(config: &AutoTuneConfig) -> Result<AutoTuneSummary> {
         if iter + 1 < config.max_iterations {
             let ctx = DiagnosisContext {
                 report: &best_report,
-                targets: &config.targets,
                 extracted: extracted.as_ref(),
                 geometry: geometry.as_ref(),
                 diff_pairs: &diff_pairs,
@@ -172,7 +171,7 @@ pub fn run_autotune_loop(config: &AutoTuneConfig) -> Result<AutoTuneSummary> {
 
     Ok(AutoTuneSummary {
         total_iterations,
-        converged: best_report.meets_targets(&config.targets),
+        converged: best_report.is_satisfactory(),
         final_foms: best_report,
     })
 }
